@@ -1,0 +1,15 @@
+{
+  "name": "lapigota-pocketbase-setup",
+  "version": "1.0.0",
+  "description": "Script de inicialización para PocketBase - La Pigota",
+  "main": "setup_pocketbase.js",
+  "scripts": {
+    "setup": "node setup_pocketbase.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pocketbase": "^0.21.1"
+  },
+  "author": "La Pigota",
+  "license": "MIT"
+}

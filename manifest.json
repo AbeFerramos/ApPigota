@@ -1,0 +1,42 @@
+{
+  "name": "La Pigota - Gestión de Colla",
+  "short_name": "La Pigota",
+  "description": "Aplicación de gestión para La Pigota - Colla de Diables",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e63946",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "img/logoPi.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "img/logoPi.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Tasques",
+      "short_name": "Tasques",
+      "description": "Acceso rápido a las tareas",
+      "url": "/?tab=tab-tasques",
+      "icons": [{ "src": "img/logoPi.jpeg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Sortides",
+      "short_name": "Sortides",
+      "description": "Ver las próximas sortidas",
+      "url": "/?tab=tab-sortides",
+      "icons": [{ "src": "img/logoPi.jpeg", "sizes": "96x96" }]
+    }
+  ]
+}

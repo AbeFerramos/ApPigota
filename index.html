@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>La Pigota Junta</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#e63946">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="La Pigota">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script>
+        // Registrar Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('Service Worker registrado:', registration);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker falló:', error);
+                    });
+            });
+        }
+    </script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo-area">
+                <img src="img/logoPi.jpeg" alt="Logo de La Pigota" class="main-logo">
+                <div>
+                    <span class="logo">La Pigota</span>
+                    <small class="logo-subtitle">Gestio de junta i temporada 2026</small>
+                </div>
+            </div>
+            <div class="quick-stats">
+                <span id="dashboard-tareas-abiertas">0</span>
+                <small>pendents</small>
+                <div id="sync-status" class="sync-status offline" title="Estat de sincronitzacio">Local</div>
+                <button id="notification-btn" class="btn-secondary auth-btn" type="button" onclick="requestNotificationPermission()" title="Activar notificacions">
+                    <i class="fas fa-bell"></i>
+                </button>
+                <button id="auth-action-btn" class="btn-secondary auth-btn" type="button" onclick="handleAuthAction()" title="Iniciar o tancar sessio">Sessio</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="app-container">
+        <section id="tab-junta" class="tab-content">
+            <div class="junta-summary">
+                <p id="dashboard-resumen" class="junta-summary-text"></p>
+                <div class="stats-grid stats-grid-compact">
+                    <div class="metric-card">
+                        <span>Sortides</span>
+                        <strong id="metric-sortides">0</strong>
+                    </div>
+                    <div class="metric-card">
+                        <span>Tabalers aptes</span>
+                        <strong id="metric-tabalers">0</strong>
+                    </div>
+                    <div class="metric-card">
+                        <span>Articles piro</span>
+                        <strong id="metric-piro">0</strong>
+                    </div>
+                    <div class="metric-card warning">
+                        <span>Prioritats</span>
+                        <strong id="metric-prioritats">0</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="junta-layout">
+                <nav class="junta-subnav" aria-label="Subseccions de junta">
+                    <button type="button" onclick="showJuntaSubTab('junta-membres')" class="junta-subnav-item active" id="btn-junta-membres">
+                        <i class="fas fa-users"></i><span>Membres</span>
+                    </button>
+                    <button type="button" onclick="showJuntaSubTab('junta-documentacio')" class="junta-subnav-item" id="btn-junta-documentacio">
+                        <i class="fas fa-folder-open"></i><span>Documentacio</span>
+                    </button>
+                    <button type="button" onclick="showJuntaSubTab('junta-reunions')" class="junta-subnav-item" id="btn-junta-reunions">
+                        <i class="fas fa-clipboard-list"></i><span>Reunions</span>
+                    </button>
+                    <button type="button" onclick="openSortidaModal()" class="junta-subnav-item" id="btn-junta-crear-sortida">
+                        <i class="fas fa-plus-circle"></i><span>Crear sortida</span>
+                    </button>
+                    <button type="button" onclick="showJuntaSubTab('junta-bestiari')" class="junta-subnav-item" id="btn-junta-bestiari">
+                        <i class="fas fa-dragon"></i><span>Bestiari</span>
+                    </button>
+                    <button type="button" onclick="showJuntaSubTab('junta-piro')" class="junta-subnav-item" id="btn-junta-piro">
+                        <i class="fas fa-fire-flame-curved"></i><span>Piro</span>
+                    </button>
+                    <button type="button" onclick="showJuntaSubTab('junta-r-form')" class="junta-subnav-item" id="btn-junta-r-form">
+                        <i class="fas fa-square-poll-vertical"></i><span>R. form</span>
+                    </button>
+                    <button type="button" onclick="logoutJunta()" class="junta-subnav-item" id="btn-junta-logout">
+                        <i class="fas fa-sign-out-alt"></i><span>Tancar sessio</span>
+                    </button>
+                </nav>
+
+                <div class="junta-panel">
+                    <div id="junta-membres" class="junta-subcontent active">
+                        <div class="section-title">
+                            <h2>Organigrama Junta</h2>
+                            <button class="btn-add" onclick="openJuntaModal()">+</button>
+                        </div>
+                        <div class="info-card compact">
+                            <strong>Responsabilitats de junta</strong>
+                            <p>Aqui es defineix qui forma part de la junta i quines funcions assumeix cada persona.</p>
+                        </div>
+                        <div class="info-card compact">
+                            <button class="btn-secondary full" onclick="openChangePasswordModal()">Canviar contrasenya</button>
+                        </div>
+                        <div id="lista-junta"></div>
+                    </div>
+
+                    <div id="junta-documentacio" class="junta-subcontent">
+                        <div class="section-title">
+                            <h2>Documentacio</h2>
+                            <button class="btn-add" onclick="openDocumentModal()">+</button>
+                        </div>
+                        <div class="info-card compact">
+                            <strong>Arxiu i documents de la colla</strong>
+                            <p>Gestiona documents, arxius i material de referencia de la junta.</p>
+                        </div>
+                        <div class="section-title">
+                            <h3>Documents actius</h3>
+                        </div>
+                        <div id="lista-documents"></div>
+                        <div class="section-title">
+                            <h3>Arxiu de documents</h3>
+                        </div>
+                        <div id="lista-documents-arxivats"></div>
+                    </div>
+
+                    <div id="junta-reunions" class="junta-subcontent">
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h2>Reunions i acords</h2>
+                                <button class="btn-add" onclick="openReunionModal()">+</button>
+                            </div>
+                            <div class="info-card compact">
+                                <div class="section-title">
+                                    <strong>Ordre del dia propera reunio</strong>
+                                    <button class="btn-add btn-add-small" onclick="openTextBlocModal('ordre-dia')"><i class="fas fa-pen"></i></button>
+                                </div>
+                                <div id="lista-agenda-base"></div>
+                            </div>
+                            <div class="section-title">
+                                <h3>Reunions actives</h3>
+                            </div>
+                            <div id="lista-reunions"></div>
+                            <div class="section-title">
+                                <h3>Arxiu de reunions</h3>
+                            </div>
+                            <div id="lista-reunions-arxivades"></div>
+                        </div>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h2>Tasques de junta</h2>
+                                <button class="btn-add" onclick="openTaskModal()">+</button>
+                            </div>
+                            <div class="info-card compact">
+                                <strong>Seguiment de feina</strong>
+                                <p>Utilitza aquest apartat per repartir feina, prioritzar-la i marcar-la com feta quan estigui resolta.</p>
+                            </div>
+                            <div id="lista-tasques"></div>
+                        </div>
+                    </div>
+
+                    <div id="junta-bestiari" class="junta-subcontent">
+                        <div class="section-title">
+                            <h2>Contactes Bestiaris</h2>
+                            <button class="btn-add" onclick="openBestiaModal()">+</button>
+                        </div>
+                        <div id="lista-bestiari"></div>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h3>Mapa de recorridos</h3>
+                            </div>
+                            <div class="info-card">
+                                <div class="map-controls">
+                                    <select id="sortida-mapa-select">
+                                        <option value="">Selecciona sortida</option>
+                                    </select>
+                                    <button class="btn-secondary" onclick="limpiarMapa()">Netejar mapa</button>
+                                    <button class="btn-secondary" onclick="guardarRecorrido()">Guardar recorregut</button>
+                                    <button class="btn-secondary" onclick="copiarMapaWhatsApp()">WhatsApp</button>
+                                </div>
+                                <div id="mapa-bestiari" style="height: 400px; width: 100%;"></div>
+                                <div class="map-info">
+                                    <p class="small-text">Fes clic al mapa per començar a dibuixar. Fes clics addicionals per crear punts. Doble clic per acabar.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="junta-piro" class="junta-subcontent">
+                        <div class="section-title">
+                            <h2>Pirotecnia</h2>
+                        </div>
+                        <div class="info-card compact">
+                            <strong>Control de material i consum</strong>
+                            <p>Aqui es controla l'estoc disponible i la piro utilitzada en cada sortida.</p>
+                        </div>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h3>Stock actual</h3>
+                            </div>
+                            <div class="grid-stock">
+                                <div class="stock-card">
+                                    <small>Carretilles</small>
+                                    <strong id="stock-carretilles">0</strong>
+                                    <div class="controls">
+                                        <button onclick="updateStock('carretilles', -25)">-25</button>
+                                        <button onclick="updateStock('carretilles', 25)">+25</button>
+                                    </div>
+                                </div>
+                                <div class="stock-card">
+                                    <small>Infantils</small>
+                                    <strong id="stock-infantils">0</strong>
+                                    <div class="controls">
+                                        <button onclick="updateStock('infantils', -25)">-25</button>
+                                        <button onclick="updateStock('infantils', 25)">+25</button>
+                                    </div>
+                                </div>
+                                <div class="stock-card">
+                                    <small>Brolladors</small>
+                                    <strong id="stock-brolladors">0</strong>
+                                    <div class="controls">
+                                        <button onclick="updateStock('brolladors', -10)">-10</button>
+                                        <button onclick="updateStock('brolladors', 10)">+10</button>
+                                    </div>
+                                </div>
+                                <div class="stock-card">
+                                    <small>Fum i torxes</small>
+                                    <strong id="stock-efectes">0</strong>
+                                    <div class="controls">
+                                        <button onclick="updateStock('efectes', -5)">-5</button>
+                                        <button onclick="updateStock('efectes', 5)">+5</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h3>Assignar piro a sortides</h3>
+                            </div>
+                            <div class="info-card">
+                                <div class="calc-grid">
+                                    <select id="piro-sortida-select"></select>
+                                </div>
+                                <div class="calc-grid">
+                                    <input type="number" id="piro-sortida-carretilles" min="0" placeholder="Carretilles">
+                                    <input type="number" id="piro-sortida-infantils" min="0" placeholder="Infantils">
+                                </div>
+                                <div class="calc-grid">
+                                    <input type="number" id="piro-sortida-brolladors" min="0" placeholder="Brolladors">
+                                    <input type="number" id="piro-sortida-efectes" min="0" placeholder="Fum i torxes">
+                                </div>
+                                <button class="btn-primary full" onclick="guardarPioSortida()">Guardar piro de la sortida</button>
+                                <p id="resultado-piro-sortida" class="result-line"></p>
+                            </div>
+                        </div>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h3>Historial complet de piro utilitzada</h3>
+                            </div>
+                            <div id="historial-piro-complet"></div>
+                        </div>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h3>Piro utilitzada per sortides</h3>
+                            </div>
+                            <div id="lista-reserves-piro"></div>
+                        </div>
+                    </div>
+
+                    <div id="junta-r-form" class="junta-subcontent">
+                        <div class="section-title">
+                            <h2>R. form</h2>
+                        </div>
+                        <div class="info-card compact">
+                            <strong>Preguntes del formulari</strong>
+                            <p>Canvia els textos de les preguntes i es veuran actualitzats al formulari public i a les respostes de cada sortida.</p>
+                        </div>
+                        <form id="form-config-formulari" class="info-card form-config-card">
+                            <div id="lista-preguntes-formulari"></div>
+                            <label for="nova-pregunta-formulari">Afegir pregunta</label>
+                            <input type="text" id="nova-pregunta-formulari" placeholder="Escriu la nova pregunta">
+                            <select id="nova-pregunta-tipus">
+                                <option value="text">Resposta curta</option>
+                                <option value="llarg">Resposta llarga</option>
+                                <option value="numero">Numero</option>
+                            </select>
+                            <button type="submit" class="btn-primary full">Afegir pregunta</button>
+                        </form>
+
+                        <div class="tab-block">
+                            <div class="section-title">
+                                <h3>Respostes del formulari</h3>
+                            </div>
+                            <div class="info-card">
+                                <select id="respostes-form-sortida-select"></select>
+                                <div id="resum-respostes-form"></div>
+                            </div>
+                            <div id="lista-respostes-form"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-sortides" class="tab-content active">
+            <div class="section-title">
+                <h2>Sortides</h2>
+            </div>
+            <div class="info-card compact">
+                <strong>Organitzacio de cada acte</strong>
+                <p>Visualitza les sortides en calendari i gestiona l'assistencia.</p>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Calendari</h3>
+                </div>
+                <div id="calendari-sortides"></div>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Gestio detallada</h3>
+                </div>
+                <div class="info-card">
+                    <div class="section-title">
+                        <strong>Sortida seleccionada</strong>
+                    </div>
+                    <select id="sortida-gestio-select"></select>
+                </div>
+
+                <div class="info-card">
+                    <div class="section-title">
+                        <strong>Assistencia</strong>
+                        <button class="btn-add btn-add-small" onclick="openParticipantModal()">+</button>
+                    </div>
+                    <div id="resum-assistencia-sortida"></div>
+                    <div class="actions-row">
+                        <button onclick="copiarResumSortida()">Copiar resum WhatsApp</button>
+                    </div>
+                    <div id="lista-assistencia-sortida"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-formulari" class="tab-content">
+            <div class="google-form-shell">
+                <div class="form-hero-line"></div>
+                <div class="section-title">
+                    <h2><i class="fas fa-clipboard-question"></i> Formulari sortides</h2>
+                </div>
+                <p class="small-text">Tria la sortida i envia la resposta. Si el nom no surt a la llista, escriu-lo igualment i quedara guardat.</p>
+
+                <form id="form-sortida-public" class="google-form-card">
+                    <label for="formulari-sortida-select">Sortida</label>
+                    <select id="formulari-sortida-select" required></select>
+
+                    <datalist id="membres-colla-list"></datalist>
+                    <div id="campos-formulari"></div>
+
+                    <button type="submit" class="btn-primary full">Enviar resposta</button>
+                    <p id="formulari-feedback" class="result-line"></p>
+                </form>
+            </div>
+        </section>
+
+        <section id="tab-sortides" class="tab-content">
+            <div class="section-title">
+                <h2>Sortides</h2>
+                <button class="btn-add" onclick="openSortidaModal()">+</button>
+            </div>
+            <div class="info-card compact">
+                <strong>Organitzacio de cada acte</strong>
+                <p>Visualitza les sortides en calendari i gestiona l'assistencia.</p>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Calendari</h3>
+                </div>
+                <div id="calendari-sortides"></div>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Gestio detallada</h3>
+                </div>
+                <div class="info-card">
+                    <div class="section-title">
+                        <strong>Sortida seleccionada</strong>
+                    </div>
+                    <select id="sortida-gestio-select"></select>
+                </div>
+
+                <div class="info-card">
+                    <div class="section-title">
+                        <strong>Assistencia</strong>
+                        <button class="btn-add btn-add-small" onclick="openParticipantModal()">+</button>
+                    </div>
+                    <div id="resum-assistencia-sortida"></div>
+                    <div class="actions-row">
+                        <button onclick="copiarResumSortida()">Copiar resum WhatsApp</button>
+                    </div>
+                    <div id="lista-assistencia-sortida"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-vestuari" class="tab-content">
+            <div class="section-title">
+                <h2>Vestuari</h2>
+                <button class="btn-add" onclick="openVestuariModal()">+</button>
+                <button class="btn-logout" onclick="logoutVestuari()" title="Tancar sessió vestuari">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+            <div class="info-card compact">
+                <strong>Control de roba</strong>
+                <p>Aquest apartat diferencia el stock al guardarropa i el material que te cada persona assignat.</p>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Stock part de dalt</h3>
+                </div>
+                <div id="stock-dalt-grid"></div>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Stock pantalon</h3>
+                </div>
+                <div id="stock-baix-grid"></div>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Assignacions</h3>
+                </div>
+                <div id="lista-vestuari"></div>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Reserva roba per sortides</h3>
+                </div>
+                <div class="info-card">
+                    <div class="section-title">
+                        <strong>Selecciona sortida</strong>
+                    </div>
+                    <select id="reserva-sortida-select"></select>
+                    <div id="reserva-roba-info"></div>
+                </div>
+                <div id="lista-reserves-roba"></div>
+            </div>
+        </section>
+
+        <section id="tab-tabals" class="tab-content">
+            <div class="section-title">
+                <h2>Tabalers</h2>
+                <button class="btn-add" onclick="openTabalerModal()">+</button>
+            </div>
+            <div class="info-card compact">
+                <strong>Control d'assajos i recuent</strong>
+                <p>Registre de qui ha assajat aquest mes i recuent dels tabalers de la colla.</p>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Recuent mensual</h3>
+                </div>
+                <div id="recuent-tabalers"></div>
+            </div>
+
+            <div class="tab-block">
+                <div class="section-title">
+                    <h3>Tots els tabalers</h3>
+                </div>
+                <div id="lista-tabalers"></div>
+            </div>
+        </section>
+    </main>
+
+    <nav class="bottom-nav">
+        <button type="button" onclick="showTab('tab-junta')" class="nav-item active" id="btn-junta"><i class="fas fa-sitemap"></i><span>Junta</span></button>
+        <button type="button" onclick="showTab('tab-sortides')" class="nav-item" id="btn-sortides"><i class="fas fa-calendar-days"></i><span>Sortides</span></button>
+        <button type="button" onclick="showTab('tab-formulari')" class="nav-item" id="btn-formulari"><i class="fas fa-clipboard-list"></i><span>Formulari</span></button>
+        <button type="button" onclick="showTab('tab-vestuari')" class="nav-item" id="btn-vestuari"><i class="fas fa-shirt"></i><span>Vestuari</span></button>
+        <button type="button" onclick="showTab('tab-tabals')" class="nav-item" id="btn-tabals"><i class="fas fa-drum"></i><span>Tabals</span></button>
+    </nav>
+
+    <div id="modal-reunion" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-reunion-title">Nova reunio</h3>
+            <form id="form-reunion">
+                <input type="hidden" id="r-index">
+                <input type="date" id="r-fecha" required>
+                <input type="text" id="r-titulo" placeholder="Titol o context" required>
+                <textarea id="r-acords" placeholder="Acords, punts tractats o seguents passos" required></textarea>
+                <textarea id="r-acta" placeholder="Acta de la reunio (opcional)"></textarea>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-reunion')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-tasca" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-tasca-title">Nova tasca</h3>
+            <form id="form-tasca">
+                <input type="hidden" id="t-index">
+                <input type="text" id="t-titulo" placeholder="Tasca" required>
+                <input type="text" id="t-responsable" placeholder="Responsable">
+                <select id="t-prioritat">
+                    <option value="alta">Prioritat alta</option>
+                    <option value="mitjana">Prioritat mitjana</option>
+                    <option value="baixa">Prioritat baixa</option>
+                </select>
+                <textarea id="t-detall" placeholder="Detall o context"></textarea>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-tasca')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-junta" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-junta-title">Nova persona de junta</h3>
+            <form id="form-junta">
+                <input type="hidden" id="j-index">
+                <input type="text" id="j-nom" placeholder="Nom" required>
+                <input type="text" id="j-carrec" placeholder="Carrec" required>
+                <textarea id="j-funcions" placeholder="Una funcio per linia" required></textarea>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-junta')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-sortida" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-sortida-title">Gestió de sortides</h3>
+            
+            <div class="sortides-list-container">
+                <div class="section-title">
+                    <h4>Sortides existents</h4>
+                    <button class="btn-add btn-add-small" onclick="showNovaSortidaForm()"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="lista-sortides-modal"></div>
+            </div>
+
+            <div id="form-sortida-container" style="display: none;">
+                <div class="section-title">
+                    <h4 id="form-sortida-title">Nova sortida</h4>
+                    <button class="btn-add btn-add-small" onclick="hideSortidaForm()"><i class="fas fa-arrow-left"></i></button>
+                </div>
+                <form id="form-sortida">
+                    <input type="hidden" id="s-index">
+                    <input type="text" id="s-nom" placeholder="Acte o correfoc" required>
+                    <input type="text" id="s-lloc" placeholder="Poble o entitat" required>
+                    <input type="date" id="s-data" required>
+                    <textarea id="s-notes" placeholder="Observacions o seguiment"></textarea>
+                    <button type="submit" class="btn-primary full">Guardar</button>
+                    <button type="button" onclick="hideSortidaForm()" class="btn-cancelar">Tancar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-tabaler" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-tabaler-title">Nou tabaler</h3>
+            <form id="form-tabaler">
+                <input type="hidden" id="tb-index">
+                <input type="text" id="tb-nom" placeholder="Nom" required>
+                <select id="tb-tipo">
+                    <option value="adult">Adult</option>
+                    <option value="infantil">Infantil</option>
+                </select>
+                <input type="number" id="tb-edat" min="0" placeholder="Edat">
+                <input type="number" id="tb-assajos" min="0" placeholder="Assajos aquest mes" value="0">
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-tabaler')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-vestuari-auth" class="modal">
+        <div class="modal-content">
+            <h3>Accés a Vestuari</h3>
+            <p>Introdueix la contrasenya per accedir a la gestió de vestuari.</p>
+            <form id="form-vestuari-auth">
+                <input type="password" id="vestuari-password" placeholder="Contrasenya" required>
+                <button type="submit" class="btn-primary full">Entrar</button>
+                <button type="button" onclick="toggleModal('modal-vestuari-auth')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-vestuari" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-vestuari-title">Nova assignacio de vestuari</h3>
+            <form id="form-vestuari">
+                <input type="hidden" id="v-index">
+                <input type="text" id="v-nom" placeholder="Nom de la persona" required>
+                <select id="v-dalt-talla">
+                    <option value="">Sense part de dalt assignada</option>
+                    <option value="GA">GA</option>
+                    <option value="L">L</option>
+                    <option value="G">G</option>
+                    <option value="M">M</option>
+                    <option value="P">P</option>
+                    <option value="ESPECIALS">ESPECIALS</option>
+                    <option value="PI">PI</option>
+                    <option value="MI">MI</option>
+                    <option value="GI">GI</option>
+                    <option value="TELA FINA M">TELA FINA M</option>
+                </select>
+                <select id="v-dalt-estat">
+                    <option value="guardarropa">Part de dalt al guardarropa</option>
+                    <option value="persona">Part de dalt amb la persona</option>
+                </select>
+                <select id="v-baix-talla">
+                    <option value="">Sense pantalon assignat</option>
+                    <option value="G">G</option>
+                    <option value="L">L</option>
+                    <option value="M">M</option>
+                    <option value="P">P</option>
+                    <option value="ESPECIALS">ESPECIALS</option>
+                    <option value="PIE">PIE</option>
+                    <option value="Pi">Pi</option>
+                    <option value="MI">MI</option>
+                    <option value="GI">GI</option>
+                    <option value="TELA FINA MINI">TELA FINA MINI</option>
+                    <option value="TELA FINA M/P">TELA FINA M/P</option>
+                </select>
+                <select id="v-baix-estat">
+                    <option value="guardarropa">Pantalon al guardarropa</option>
+                    <option value="persona">Pantalon amb la persona</option>
+                </select>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-vestuari')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-reserva-roba" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-reserva-roba-title">Nova reserva de roba</h3>
+            <form id="form-reserva-roba">
+                <input type="hidden" id="rr-index">
+                <input type="hidden" id="rr-sortida-id">
+                <input type="text" id="rr-nom" placeholder="Nom de la persona" required>
+                <select id="rr-dalt-talla">
+                    <option value="">Sense part de dalt assignada</option>
+                    <option value="GA">GA</option>
+                    <option value="L">L</option>
+                    <option value="G">G</option>
+                    <option value="M">M</option>
+                    <option value="P">P</option>
+                    <option value="ESPECIALS">ESPECIALS</option>
+                    <option value="PI">PI</option>
+                    <option value="MI">MI</option>
+                    <option value="GI">GI</option>
+                    <option value="TELA FINA M">TELA FINA M</option>
+                </select>
+                <select id="rr-dalt-estat">
+                    <option value="guardarropa">Part de dalt al guardarropa</option>
+                    <option value="persona">Part de dalt amb la persona</option>
+                </select>
+                <select id="rr-baix-talla">
+                    <option value="">Sense pantalon assignat</option>
+                    <option value="G">G</option>
+                    <option value="L">L</option>
+                    <option value="M">M</option>
+                    <option value="P">P</option>
+                    <option value="ESPECIALS">ESPECIALS</option>
+                    <option value="PIE">PIE</option>
+                    <option value="Pi">Pi</option>
+                    <option value="MI">MI</option>
+                    <option value="GI">GI</option>
+                    <option value="TELA FINA MINI">TELA FINA MINI</option>
+                    <option value="TELA FINA M/P">TELA FINA M/P</option>
+                </select>
+                <select id="rr-baix-estat">
+                    <option value="guardarropa">Pantalon al guardarropa</option>
+                    <option value="persona">Pantalon amb la persona</option>
+                </select>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-reserva-roba')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-participant-sortida" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-participant-title">Nova resposta de sortida</h3>
+            <form id="form-participant-sortida">
+                <input type="hidden" id="ps-index">
+                <input type="text" id="ps-nom" list="membres-colla-list" placeholder="Nom" required>
+                <select id="ps-resposta">
+                    <option value="si">Si vinc</option>
+                    <option value="no">No vinc</option>
+                    <option value="potser">No ho se encara</option>
+                </select>
+                <input type="number" id="ps-nens" min="0" placeholder="Numero de nens">
+                <input type="text" id="ps-menjar" placeholder="Tema menjar o observacions">
+                <textarea id="ps-notes" placeholder="Altres notes"></textarea>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-participant-sortida')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-text-bloc" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-text-bloc-title">Editar text</h3>
+            <form id="form-text-bloc">
+                <input type="hidden" id="tb-target">
+                <textarea id="tb-text" placeholder="Escriu el text complet" required></textarea>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-text-bloc')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-junta-auth" class="modal">
+        <div class="modal-content">
+            <h3>Accés a la Junta</h3>
+            <p class="small-text">Introdueix la contrasenya per accedir a l'apartat de la junta.</p>
+            <form id="form-junta-auth">
+                <input type="password" id="junta-password" placeholder="Contrasenya" required>
+                <p id="junta-auth-feedback" class="small-text"></p>
+                <button type="submit" class="btn-primary full">Accedir</button>
+                <button type="button" onclick="toggleModal('modal-junta-auth')" class="btn-cancelar">Cancel·lar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-change-password" class="modal">
+        <div class="modal-content">
+            <h3>Canviar contrasenya</h3>
+            <p class="small-text">Introdueix la contrasenya actual i la nova.</p>
+            <form id="form-change-password">
+                <input type="password" id="old-password" placeholder="Contrasenya actual" required>
+                <input type="password" id="new-password" placeholder="Nova contrasenya" required>
+                <p id="change-password-feedback" class="small-text"></p>
+                <button type="submit" class="btn-primary full">Canviar</button>
+                <button type="button" onclick="toggleModal('modal-change-password')" class="btn-cancelar">Cancel·lar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-auth" class="modal">
+        <div class="modal-content">
+            <h3>Iniciar sessio PocketBase</h3>
+            <form id="form-auth">
+                <input type="email" id="auth-email" placeholder="Correu electronic" required>
+                <input type="password" id="auth-password" placeholder="Contrasenya" required>
+                <p id="auth-feedback" class="small-text"></p>
+                <button type="submit" class="btn-primary full">Entrar</button>
+                <button type="button" onclick="toggleModal('modal-auth')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-document" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-document-title">Nou document</h3>
+            <form id="form-document">
+                <input type="hidden" id="doc-index">
+                <input type="text" id="doc-titol" placeholder="Titol del document" required>
+                <input type="text" id="doc-categoria" placeholder="Categoria (Normativa, Actes, Pressupostos...)" required>
+                <input type="date" id="doc-data" required>
+                <textarea id="doc-descripcio" placeholder="Descripcio o contingut del document" required></textarea>
+                <div class="file-upload-section">
+                    <label for="doc-arxiu">Arxiu adjunt (opcional)</label>
+                    <input type="file" id="doc-arxiu" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png">
+                    <small class="small-text">Formats acceptats: PDF, Word, TXT, imatges</small>
+                </div>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-document')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-bestia" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-bestia-title">Nou contacte bestiari</h3>
+            <form id="form-bestia">
+                <input type="hidden" id="b-index">
+                <input type="text" id="b-nom" placeholder="Nom de la bèstia" required>
+                <input type="text" id="b-poblacio" placeholder="Població" required>
+                <textarea id="b-feina" placeholder="Feina"></textarea>
+                <input type="text" id="b-contacte-nom" placeholder="Nom de la persona de contacte">
+                <input type="tel" id="b-contacte-telefon" placeholder="Telèfon de contacte (ex: 600123456)">
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-bestia')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="js/script.js"></script>
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("sw.js").catch(() => {});
+        }
+    </script>
+</body>
+</html>

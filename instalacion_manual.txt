@@ -1,0 +1,98 @@
+# INSTALACIÓN MANUAL DE POCKETBASE EN CASAOS
+
+## Paso 1: Conectar al servidor por SSH
+
+1. Abre PuTTY o tu cliente SSH favorito
+2. Conéctate a: 192.168.0.29
+3. Usuario: abriserver
+4. Contraseña: abriabriserver2
+
+## Paso 2: Ejecutar estos comandos en el servidor
+
+Copia y pega estos comandos uno por uno en tu sesión SSH:
+
+```bash
+# Crear directorio de instalación
+sudo mkdir -p /opt/pocketbase
+cd /tmp
+
+# Descargar PocketBase
+wget -O pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v0.22.20/pocketbase_0.22.20_linux_amd64.zip
+
+# Extraer PocketBase
+sudo unzip -o pocketbase.zip -d /opt/pocketbase
+rm pocketbase.zip
+
+# Configurar permisos
+sudo chmod +x /opt/pocketbase/pocketbase
+mkdir -p /opt/pocketbase/data
+
+# Crear servicio systemd
+sudo tee /etc/systemd/system/pocketbase.service > /dev/null <<'EOF'
+[Unit]
+Description=PocketBase for La Pigota
+After=network.target
+
+[Service]
+Type=simple
+User=abriserver
+WorkingDirectory=/opt/pocketbase
+ExecStart=/opt/pocketbase/pocketbase serve --http=0.0.0.0:8090
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Iniciar servicio
+sudo systemctl daemon-reload
+sudo systemctl enable pocketbase
+sudo systemctl start pocketbase
+
+# Abrir puerto en firewall
+sudo ufw allow 8090/tcp
+
+# Verificar estado
+sudo systemctl status pocketbase
+```
+
+## Paso 3: Verificar instalación
+
+Desde tu navegador local, accede a:
+- Panel de administración: http://192.168.0.29:8090/_/
+- API health check: http://192.168.0.29:8090/api/health
+
+## Paso 4: Ejecutar script de inicialización desde tu máquina local
+
+Una vez que PocketBase esté funcionando, ejecuta:
+
+```bash
+cd C:\Users\dailo\Desktop\ProyectosAbe\ApPigota
+npm install
+npm run setup
+```
+
+## Paso 5: Probar la aplicación
+
+Abre tu aplicación y verifica que se conecte correctamente.
+
+## Solución de problemas
+
+Si PocketBase no inicia:
+```bash
+# Ver logs
+sudo journalctl -u pocketbase -f
+
+# Reiniciar servicio
+sudo systemctl restart pocketbase
+
+# Verificar que el puerto esté libre
+sudo netstat -tlnp | grep 8090
+```
+
+Si tienes problemas de permisos:
+```bash
+# Asegurarse de que el usuario tenga permisos
+sudo chown -R abriserver:abriserver /opt/pocketbase
+```
