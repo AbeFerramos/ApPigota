@@ -8,7 +8,7 @@ const PB_ADMIN_EMAIL = "admin@lapigota.cat";
 const PB_ADMIN_PASSWORD = "lapigota2026";
 const PB_CONFIG = {
     enabled: true,
-    baseUrl: "http://192.168.0.29:8090", // Servidor CasaOS
+    baseUrl: "http://77.230.97.164:8090", // IP pública para acceso externo
     collection: "app_state",
     keyField: "storageKey",
     dataField: "payload",
