@@ -12,7 +12,8 @@ const PB_CONFIG = {
     collection: "app_state",
     keyField: "storageKey",
     dataField: "payload",
-    authCollection: "users"
+    authCollection: "users",
+    useAuth: false // Temporalmente desactivado hasta configurar OAuth2
 };
 
 // Sistema de notificaciones
@@ -987,34 +988,38 @@ function getPocketBaseHeaders(extra = {}) {
 }
 
 async function fetchPocketBaseRecord() {
-    try {
-        // Autenticar como admin para asegurar permisos
-        const authResponse = await fetch(
-            buildPocketBaseUrl('/api/admins/auth-with-password'),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identity: PB_ADMIN_EMAIL,
-                    password: PB_ADMIN_PASSWORD
-                })
+    // Solo autenticar si useAuth está habilitado
+    if (PB_CONFIG.useAuth) {
+        try {
+            // Autenticar como admin para asegurar permisos
+            const authResponse = await fetch(
+                buildPocketBaseUrl('/api/admins/auth-with-password'),
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        identity: PB_ADMIN_EMAIL,
+                        password: PB_ADMIN_PASSWORD
+                    })
+                }
+            );
+            
+            if (authResponse.ok) {
+                const authData = await authResponse.json();
+                authState.token = authData.token;
+                saveAuthState();
             }
-        );
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            authState.token = authData.token;
-            saveAuthState();
+        } catch (error) {
+            console.warn("No se pudo autenticar como admin:", error);
         }
-    } catch (error) {
-        console.warn("No se pudo autenticar como admin:", error);
     }
     
     const filter = encodeURIComponent(`${PB_CONFIG.keyField}="${STORAGE_KEY}"`);
+    const headers = PB_CONFIG.useAuth ? getPocketBaseHeaders() : {};
     const response = await fetch(
         buildPocketBaseUrl(`/api/collections/${PB_CONFIG.collection}/records?filter=${filter}&perPage=1`),
         {
-            headers: getPocketBaseHeaders()
+            headers: headers
         }
     );
     
@@ -1043,11 +1048,15 @@ async function persistStateToPocketBase() {
             : buildPocketBaseUrl(`/api/collections/${PB_CONFIG.collection}/records`);
 
         const method = existing ? "PATCH" : "POST";
+        const headers = PB_CONFIG.useAuth ? getPocketBaseHeaders({
+            "Content-Type": "application/json"
+        }) : {
+            "Content-Type": "application/json"
+        };
+        
         const response = await fetch(targetUrl, {
             method,
-            headers: getPocketBaseHeaders({
-                "Content-Type": "application/json"
-            }),
+            headers: headers,
             body: JSON.stringify(body)
         });
 
