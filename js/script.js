@@ -107,7 +107,7 @@ window.persistStateToPocketBase = async function() {
 };
 
 const FIREBASE_CONFIG = {
-    enabled: true, // Reactivar para migración limpia
+    enabled: true, // Activado para implementación limpia
     apiKey: "AIzaSyDE3mNpoFrblrdEJYgF0gegW6MjNgA32pc",
     authDomain: "la-pigota.firebaseapp.com",
     databaseURL: "https://la-pigota-default-rtdb.europe-west1.firebasedatabase.app",
@@ -4016,3 +4016,27 @@ try {
 } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
 }
+
+// Sobrescribir funciones de PocketBase para evitar errores
+window.loginPocketBase = async function(email, password) {
+    return await loginFirebase(email, password);
+};
+
+window.logoutPocketBase = async function() {
+    return await logoutFirebase();
+};
+
+window.persistStateToPocketBase = async function() {
+    return await persistStateToFirebase();
+};
+
+window.fetchPocketBaseRecord = async function() {
+    return await fetchFirebaseData();
+};
+
+// Desactivar funciones de sincronización de preguntas que causan errores
+window.syncQuestionUpdateToPocketBase = async function() { return; };
+window.syncQuestionDeleteToPocketBase = async function() { return; };
+window.syncQuestionToPocketBase = async function() { return; };
+window.loadQuestionsFromPocketBase = async function() { return; };
+window.saveInitialQuestionsToPocketBase = async function() { return; };
