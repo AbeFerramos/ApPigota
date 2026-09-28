@@ -4040,3 +4040,68 @@ window.syncQuestionDeleteToPocketBase = async function() { return; };
 window.syncQuestionToPocketBase = async function() { return; };
 window.loadQuestionsFromPocketBase = async function() { return; };
 window.saveInitialQuestionsToPocketBase = async function() { return; };
+
+// Sincronización en tiempo real con Firebase
+let firebaseDataListener = null;
+
+// Cargar estado desde Firebase al iniciar sesión
+async function loadStateFromFirebase() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
+    
+    try {
+        setSyncStatus("syncing", "Carregant desde Firebase...");
+        const snapshot = await firebaseDatabase.ref(STORAGE_KEY).once('value');
+        const data = snapshot.val();
+        
+        if (data) {
+            const parsedData = JSON.parse(data);
+            state = parsedData;
+            saveState();
+            normalizeState();
+            renderAll();
+            setSyncStatus("ok", "Sincronitzat des de Firebase");
+            console.log("Estado cargado desde Firebase correctamente");
+        } else {
+            console.log("No hay datos en Firebase, usando estado local");
+            setSyncStatus("ok", "Mode local");
+        }
+    } catch (error) {
+        console.error("Error cargando estado desde Firebase:", error);
+        setSyncStatus("error", "Error carregant Firebase");
+    }
+}
+
+// Configurar listener en tiempo real
+function setupFirebaseRealtimeListener() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
+    
+    try {
+        firebaseDataListener = firebaseDatabase.ref(STORAGE_KEY).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const parsedData = JSON.parse(data);
+                state = parsedData;
+                saveState();
+                normalizeState();
+                renderAll();
+                setSyncStatus("ok", "Sincronitzat en temps real");
+                console.log("Estado actualizado desde Firebase en tiempo real");
+            }
+        });
+        console.log("Listener en tiempo real configurado");
+    } catch (error) {
+        console.error("Error configurando listener en tiempo real:", error);
+    }
+}
+
+// Actualizar la función de login para cargar datos y configurar listener
+const originalLoginFirebase = loginFirebase;
+loginFirebase = async function(email, password) {
+    await originalLoginFirebase(email, password);
+    
+    // Cargar datos desde Firebase
+    await loadStateFromFirebase();
+    
+    // Configurar listener en tiempo real
+    setupFirebaseRealtimeListener();
+};
