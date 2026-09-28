@@ -3813,30 +3813,36 @@ document.getElementById("form-text-bloc").onsubmit = (event) => {
     renderAll();
 };
 
-document.getElementById("form-auth").onsubmit = async (event) => {
-    event.preventDefault();
-    const feedback = document.getElementById("auth-feedback");
-    feedback.innerText = "Iniciant sessio...";
-    try {
-        // Verificar que Firebase esté inicializado
-        if (!firebaseAuth) {
-            throw new Error("Firebase no está inicializado. Por favor recarga la página.");
-        }
-        
-        await loginFirebase(
-            document.getElementById("auth-email").value,
-            document.getElementById("auth-password").value
-        );
-        feedback.innerText = "Sessio iniciada.";
-        toggleModal("modal-auth");
-        showToast("Sessio iniciada correctament.", "success");
-    } catch (error) {
-        feedback.innerText = "No s'ha pogut iniciar sessio.";
-        showToast("No s'ha pogut iniciar sessio.", "error");
-        setSyncStatus("error", `Auth Firebase: ${error.message}`);
-        console.error("Error completo:", error);
+// Event listener para formulario de autenticación - se ejecuta cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    const formAuth = document.getElementById("form-auth");
+    if (formAuth) {
+        formAuth.onsubmit = async (event) => {
+            event.preventDefault();
+            const feedback = document.getElementById("auth-feedback");
+            feedback.innerText = "Iniciant sessio...";
+            try {
+                // Verificar que Firebase esté inicializado
+                if (!firebaseAuth) {
+                    throw new Error("Firebase no está inicializado. Por favor recarga la página.");
+                }
+                
+                await loginFirebase(
+                    document.getElementById("auth-email").value,
+                    document.getElementById("auth-password").value
+                );
+                feedback.innerText = "Sessio iniciada.";
+                toggleModal("modal-auth");
+                showToast("Sessio iniciada correctament.", "success");
+            } catch (error) {
+                feedback.innerText = "No s'ha pogut iniciar sessio.";
+                showToast("No s'ha pogut iniciar sessio.", "error");
+                setSyncStatus("error", `Auth Firebase: ${error.message}`);
+                console.error("Error completo:", error);
+            }
+        };
     }
-};
+});
 
 document.getElementById("form-bestia").onsubmit = (event) => {
     event.preventDefault();
