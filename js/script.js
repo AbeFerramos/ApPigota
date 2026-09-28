@@ -3826,18 +3826,27 @@ document.getElementById("form-auth").onsubmit = async (event) => {
     const feedback = document.getElementById("auth-feedback");
     feedback.innerText = "Iniciant sessio...";
     try {
-        await loginPocketBase(
+        // Usar Firebase exclusivamente
+        await loginFirebase(
             document.getElementById("auth-email").value,
             document.getElementById("auth-password").value
         );
         feedback.innerText = "Sessio iniciada.";
         toggleModal("modal-auth");
         showToast("Sessio iniciada correctament.", "success");
-        await hydrateStateFromPocketBase();
+        
+        // Cargar datos desde Firebase
+        const firebaseData = await fetchFirebaseData();
+        if (firebaseData) {
+            state = firebaseData;
+            saveState();
+            normalizeState();
+            renderAll();
+        }
     } catch (error) {
         feedback.innerText = "No s'ha pogut iniciar sessio.";
         showToast("No s'ha pogut iniciar sessio.", "error");
-        setSyncStatus("error", `Auth PB: ${error.message}`);
+        setSyncStatus("error", `Auth Firebase: ${error.message}`);
     }
 };
 
@@ -4004,12 +4013,12 @@ try {
     updateAuthStatus();
     initializeNotificationButton();
     renderAll({ persist: false });
-    hydrateStateFromPocketBase();
+    // hydrateStateFromPocketBase(); // Desactivado - ahora usamos Firebase
     
     // Cargar preguntas desde PocketBase después de hidratar el estado
-    setTimeout(() => {
-        loadQuestionsFromPocketBase();
-    }, 1000);
+    // setTimeout(() => {
+    //     loadQuestionsFromPocketBase();
+    // }, 1000);
 } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
 }
