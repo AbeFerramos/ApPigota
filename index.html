@@ -777,10 +777,14 @@
 
     <div id="modal-auth" class="modal">
         <div class="modal-content">
-            <h3>Sincronització desactivada</h3>
-            <p>L'aplicació està actualment en mode local (localStorage).</p>
-            <p class="small-text">La sincronització s'ha desactivat temporalment per resoldre problemes de connexió.</p>
-            <button type="button" onclick="toggleModal('modal-auth')" class="btn-primary full">Tancar</button>
+            <h3>Iniciar sessio Firebase</h3>
+            <form id="form-auth">
+                <input type="email" id="auth-email" placeholder="Correu electronic" value="admin@lapigota.cat" required>
+                <input type="password" id="auth-password" placeholder="Contrasenya" value="lapigota2026" required>
+                <p id="auth-feedback" class="small-text"></p>
+                <button type="submit" class="btn-primary full">Entrar</button>
+                <button type="button" onclick="toggleModal('modal-auth')" class="btn-cancelar">Tancar</button>
+            </form>
         </div>
     </div>
 

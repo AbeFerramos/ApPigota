@@ -105,10 +105,9 @@ window.persistStateToPocketBase = async function() {
     }
     return await originalPersistStateToPocketBase();
 };
-const FIREBASE_ADMIN_EMAIL = "admin@lapigota.cat";
-const FIREBASE_ADMIN_PASSWORD = "lapigota2026";
+
 const FIREBASE_CONFIG = {
-    enabled: false, // Desactivado temporalmente
+    enabled: true, // Reactivar para migración limpia
     apiKey: "AIzaSyDE3mNpoFrblrdEJYgF0gegW6MjNgA32pc",
     authDomain: "la-pigota.firebaseapp.com",
     databaseURL: "https://la-pigota-default-rtdb.europe-west1.firebasedatabase.app",
@@ -117,11 +116,6 @@ const FIREBASE_CONFIG = {
     messagingSenderId: "211669164649",
     appId: "1:211669164649:web:daeb4f52d8def6276278f8",
     measurementId: "G-79XHY204E2"
-};
-
-// Desactivar PocketBase completamente
-const PB_CONFIG = {
-    enabled: false
 };
 
 // Sistema de notificaciones
@@ -856,11 +850,11 @@ function saveState() {
 }
 
 function queueRemoteSave() {
-    if (!PB_CONFIG.enabled) return;
+    if (!FIREBASE_CONFIG.enabled) return;
     window.clearTimeout(remoteSaveTimer);
     setSyncStatus("syncing", "Sincronitzant...");
     remoteSaveTimer = window.setTimeout(() => {
-        persistStateToPocketBase();
+        persistStateToFirebase();
     }, SAVE_DEBOUNCE_MS);
 }
 
@@ -1053,11 +1047,7 @@ function mergeSeedData() {
     });
 }
 
-function buildPocketBaseUrl(path) {
-    // Desactivado - ahora usamos Firebase
-    console.warn("buildPocketBaseUrl called but PocketBase is disabled");
-    return "about:blank";
-}
+
 
 function setSyncStatus(mode, message) {
     syncStatus = { mode, message };
@@ -3828,7 +3818,11 @@ document.getElementById("form-auth").onsubmit = async (event) => {
     const feedback = document.getElementById("auth-feedback");
     feedback.innerText = "Iniciant sessio...";
     try {
-        // Usar Firebase exclusivamente
+        // Verificar que Firebase esté inicializado
+        if (!firebaseAuth) {
+            throw new Error("Firebase no está inicializado. Por favor recarga la página.");
+        }
+        
         await loginFirebase(
             document.getElementById("auth-email").value,
             document.getElementById("auth-password").value
@@ -3836,19 +3830,11 @@ document.getElementById("form-auth").onsubmit = async (event) => {
         feedback.innerText = "Sessio iniciada.";
         toggleModal("modal-auth");
         showToast("Sessio iniciada correctament.", "success");
-        
-        // Cargar datos desde Firebase
-        const firebaseData = await fetchFirebaseData();
-        if (firebaseData) {
-            state = firebaseData;
-            saveState();
-            normalizeState();
-            renderAll();
-        }
     } catch (error) {
         feedback.innerText = "No s'ha pogut iniciar sessio.";
         showToast("No s'ha pogut iniciar sessio.", "error");
         setSyncStatus("error", `Auth Firebase: ${error.message}`);
+        console.error("Error completo:", error);
     }
 };
 
