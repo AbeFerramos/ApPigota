@@ -108,7 +108,7 @@ window.persistStateToPocketBase = async function() {
 const FIREBASE_ADMIN_EMAIL = "admin@lapigota.cat";
 const FIREBASE_ADMIN_PASSWORD = "lapigota2026";
 const FIREBASE_CONFIG = {
-    enabled: true,
+    enabled: false, // Desactivado temporalmente
     apiKey: "AIzaSyDE3mNpoFrblrdEJYgF0gegW6MjNgA32pc",
     authDomain: "la-pigota.firebaseapp.com",
     databaseURL: "https://la-pigota-default-rtdb.europe-west1.firebasedatabase.app",
@@ -1054,7 +1054,9 @@ function mergeSeedData() {
 }
 
 function buildPocketBaseUrl(path) {
-    return `${PB_CONFIG.baseUrl}${path}`;
+    // Desactivado - ahora usamos Firebase
+    console.warn("buildPocketBaseUrl called but PocketBase is disabled");
+    return "about:blank";
 }
 
 function setSyncStatus(mode, message) {
