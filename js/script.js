@@ -119,6 +119,11 @@ const FIREBASE_CONFIG = {
     measurementId: "G-79XHY204E2"
 };
 
+// Desactivar PocketBase completamente
+const PB_CONFIG = {
+    enabled: false
+};
+
 // Sistema de notificaciones
 const NOTIFICATION_CONFIG = {
     enabled: true,
@@ -806,6 +811,9 @@ normalizeState();
 if (isFreshInstall) {
     mergeSeedData();
 }
+
+// Inicializar Firebase inmediatamente
+initializeFirebase();
 
 function loadState() {
     const stored = localStorage.getItem(STORAGE_KEY);
