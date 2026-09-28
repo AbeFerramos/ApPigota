@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script>
         // Registrar Service Worker para PWA
         if ('serviceWorker' in navigator) {
@@ -773,10 +777,10 @@
 
     <div id="modal-auth" class="modal">
         <div class="modal-content">
-            <h3>Iniciar sessio PocketBase</h3>
+            <h3>Iniciar sessio Firebase</h3>
             <form id="form-auth">
-                <input type="email" id="auth-email" placeholder="Correu electronic" required>
-                <input type="password" id="auth-password" placeholder="Contrasenya" required>
+                <input type="email" id="auth-email" placeholder="Correu electronic" value="admin@lapigota.cat" required>
+                <input type="password" id="auth-password" placeholder="Contrasenya" value="lapigota2026" required>
                 <p id="auth-feedback" class="small-text"></p>
                 <button type="submit" class="btn-primary full">Entrar</button>
                 <button type="button" onclick="toggleModal('modal-auth')" class="btn-cancelar">Tancar</button>

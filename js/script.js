@@ -1,19 +1,122 @@
 console.log("Iniciando carga de JavaScript...");
 
 const STORAGE_KEY = "pigota_junta_app_v1";
-const AUTH_STORAGE_KEY = "pigota_pb_auth_v1";
+const AUTH_STORAGE_KEY = "pigota_firebase_auth_v1";
 const JUNTA_AUTH_KEY = "pigota_junta_auth_v1";
 const VESTUARI_AUTH_KEY = "pigota_vestuari_auth_v1";
-const PB_ADMIN_EMAIL = "admin@lapigota.cat";
-const PB_ADMIN_PASSWORD = "lapigota2026";
-const PB_CONFIG = {
-    enabled: true, // Reactivado con ngrok HTTPS
-    baseUrl: "https://residual-compactly-unlivable.ngrok-free.dev", // URL ngrok HTTPS
-    collection: "app_state",
-    keyField: "storageKey",
-    dataField: "payload",
-    authCollection: "users",
-    useAuth: false // Mantener sin auth hasta resolver OAuth2
+
+// Inicializar Firebase
+let firebaseApp = null;
+let firebaseAuth = null;
+let firebaseDatabase = null;
+
+function initializeFirebase() {
+    if (!FIREBASE_CONFIG.enabled) return;
+    
+    try {
+        firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+        firebaseAuth = firebase.auth();
+        firebaseDatabase = firebase.database();
+        console.log("Firebase inicializado correctamente");
+        
+        // Configurar listener de autenticación
+        firebaseAuth.onAuthStateChanged((user) => {
+            if (user) {
+                authState.user = user;
+                saveAuthState();
+                setSyncStatus("syncing", "Sessio iniciada");
+            } else {
+                authState.user = null;
+                saveAuthState();
+                setSyncStatus("offline", "Local");
+            }
+        });
+    } catch (error) {
+        console.error("Error inicializando Firebase:", error);
+    }
+}
+
+// Funciones de Firebase para reemplazar PocketBase
+async function loginFirebase(email, password) {
+    if (!FIREBASE_CONFIG.enabled || !firebaseAuth) {
+        throw new Error("Firebase no está configurado");
+    }
+    
+    try {
+        const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
+        authState.user = userCredential.user;
+        saveAuthState();
+        setSyncStatus("syncing", "Sessio iniciada");
+        console.log("Login Firebase exitoso");
+    } catch (error) {
+        console.error("Error login Firebase:", error);
+        throw new Error(`Login Firebase failed: ${error.message}`);
+    }
+}
+
+async function logoutFirebase() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseAuth) return;
+    
+    try {
+        await firebaseAuth.signOut();
+        authState.user = null;
+        saveAuthState();
+        setSyncStatus("offline", "Local");
+        console.log("Logout Firebase exitoso");
+    } catch (error) {
+        console.error("Error logout Firebase:", error);
+    }
+}
+
+async function fetchFirebaseData() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return null;
+    
+    try {
+        const snapshot = await firebaseDatabase.ref(STORAGE_KEY).once('value');
+        const data = snapshot.val();
+        return data ? JSON.parse(data) : null;
+    } catch (error) {
+        console.error("Error fetching Firebase data:", error);
+        return null;
+    }
+}
+
+async function persistStateToFirebase() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
+    remoteSyncInProgress = true;
+    setSyncStatus("syncing", "Sincronitzant...");
+
+    try {
+        await firebaseDatabase.ref(STORAGE_KEY).set(JSON.stringify(state));
+        setSyncStatus("ok", "Sincronitzat");
+    } catch (error) {
+        console.warn("Firebase save fallback to localStorage only:", error);
+        setSyncStatus("error", `Error Firebase: ${error.message}`);
+    } finally {
+        remoteSyncInProgress = false;
+    }
+}
+
+// Reemplazar funciones de PocketBase con Firebase
+const originalPersistStateToPocketBase = window.persistStateToPocketBase;
+window.persistStateToPocketBase = async function() {
+    if (FIREBASE_CONFIG.enabled) {
+        return await persistStateToFirebase();
+    }
+    return await originalPersistStateToPocketBase();
+};
+const FIREBASE_ADMIN_EMAIL = "admin@lapigota.cat";
+const FIREBASE_ADMIN_PASSWORD = "lapigota2026";
+const FIREBASE_CONFIG = {
+    enabled: true,
+    apiKey: "AIzaSyDE3mNpoFrblrdEJYgF0gegW6MjNgA32pc",
+    authDomain: "la-pigota.firebaseapp.com",
+    databaseURL: "https://la-pigota-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "la-pigota",
+    storageBucket: "la-pigota.firebasestorage.app",
+    messagingSenderId: "211669164649",
+    appId: "1:211669164649:web:daeb4f52d8def6276278f8",
+    measurementId: "G-79XHY204E2"
 };
 
 // Sistema de notificaciones
