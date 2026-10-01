@@ -12,23 +12,27 @@ let firebaseDatabase = null;
 
 function initializeFirebase() {
     if (!FIREBASE_CONFIG.enabled) return;
-    
+
     try {
         firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
         firebaseAuth = firebase.auth();
         firebaseDatabase = firebase.database();
         console.log("Firebase inicializado correctamente");
-        
+
         // Configurar listener de autenticación
         firebaseAuth.onAuthStateChanged((user) => {
             if (user) {
                 authState.user = user;
                 saveAuthState();
                 setSyncStatus("syncing", "Sessio iniciada");
+                console.log("Usuario autenticado:", user.email);
+                // Cargar datos desde Firebase cuando el usuario se autentique
+                loadStateFromFirebase();
             } else {
                 authState.user = null;
                 saveAuthState();
                 setSyncStatus("offline", "Local");
+                console.log("Usuario no autenticado");
             }
         });
     } catch (error) {
@@ -36,7 +40,7 @@ function initializeFirebase() {
     }
 }
 
-// Funciones de Firebase para reemplazar PocketBase
+// Funciones de Firebase
 async function loginFirebase(email, password) {
     if (!FIREBASE_CONFIG.enabled || !firebaseAuth) {
         throw new Error("Firebase no está configurado");
@@ -82,14 +86,23 @@ async function fetchFirebaseData() {
 }
 
 async function persistStateToFirebase() {
-    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) {
+        console.log("Firebase no habilitado o database no inicializado");
+        return;
+    }
     remoteSyncInProgress = true;
     setSyncStatus("syncing", "Sincronitzant...");
 
     try {
+        console.log("Intentando guardar en Firebase...");
+        console.log("Usuario autenticado:", !!authState.user);
         await firebaseDatabase.ref(STORAGE_KEY).set(JSON.stringify(state));
+        console.log("Datos guardados en Firebase correctamente");
         setSyncStatus("ok", "Sincronitzat");
     } catch (error) {
+        console.error("Error guardando en Firebase:", error);
+        console.error("Código de error:", error.code);
+        console.error("Mensaje de error:", error.message);
         console.warn("Firebase save fallback to localStorage only:", error);
         setSyncStatus("error", `Error Firebase: ${error.message}`);
     } finally {
@@ -97,14 +110,7 @@ async function persistStateToFirebase() {
     }
 }
 
-// Reemplazar funciones de PocketBase con Firebase
-const originalPersistStateToPocketBase = window.persistStateToPocketBase;
-window.persistStateToPocketBase = async function() {
-    if (FIREBASE_CONFIG.enabled) {
-        return await persistStateToFirebase();
-    }
-    return await originalPersistStateToPocketBase();
-};
+
 
 const FIREBASE_CONFIG = {
     enabled: true, // Activado para implementación limpia
@@ -156,11 +162,6 @@ async function requestNotificationPermission() {
         const permission = await Notification.requestPermission();
         updateNotificationButton(permission === "granted");
         
-        // Si se concede el permiso, suscribirse a PocketBase Push
-        if (permission === "granted") {
-            await subscribeToPocketBasePush();
-        }
-        
         return permission === "granted";
     } else {
         alert("Les notificacions estan bloquejades. Activa-les a la configuració del navegador.");
@@ -170,43 +171,7 @@ async function requestNotificationPermission() {
     return false;
 }
 
-// Sistema de suscripción a PocketBase Push (para futuro)
-async function subscribeToPocketBasePush() {
-    try {
-        // Registrar service worker para push
-        const registration = await navigator.serviceWorker.ready;
-        
-        // En el futuro, esto se conectará con tu PocketBase local
-        // Necesitarás configurar las claves VAPID en PocketBase
-        const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(NOTIFICATION_CONFIG.vapidPublicKey)
-        });
-        
-        // Enviar la suscripción a PocketBase
-        if (PB_CONFIG.enabled && authState.token) {
-            await fetch(`${PB_CONFIG.baseUrl}/api/collections/push_subscriptions/records`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authState.token}`
-                },
-                body: JSON.stringify({
-                    subscription: subscription.toJSON(),
-                    userId: authState.user?.id,
-                    userAgent: navigator.userAgent
-                })
-            });
-        }
-        
-        console.log("Suscrito a PocketBase Push correctamente");
-        return true;
-    } catch (error) {
-        console.warn("Error al suscribirse a PocketBase Push:", error);
-        // Si falla, seguir con notificaciones locales
-        return false;
-    }
-}
+
 
 // Utilidad para convertir VAPID key
 function urlBase64ToUint8Array(base64String) {
@@ -300,46 +265,6 @@ function sendSortidaNotification(sortida) {
     
     // Enviar notificación local inmediatamente
     sendLocalNotification(title, body, options);
-    
-    // Enviar notificación push a través de PocketBase (para futuro)
-    sendPocketBasePushNotification(title, body, {
-        type: 'sortida',
-        sortidaId: sortida.nom,
-        data: sortida
-    });
-}
-
-// Enviar notificación push a través de PocketBase (para futuro)
-async function sendPocketBasePushNotification(title, body, data = {}) {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        // En el futuro, esto enviará la notificación a través de tu PocketBase local
-        // Necesitarás crear un endpoint en PocketBase o usar su sistema de webhooks
-        const payload = {
-            title: title,
-            body: body,
-            icon: "https://cdn-icons-png.flaticon.com/512/426/426833.png",
-            badge: "https://cdn-icons-png.flaticon.com/512/426/426833.png",
-            vibrate: [200, 100, 200],
-            data: data,
-            requireInteraction: true
-        };
-        
-        // Aquí iría la llamada a tu endpoint de PocketBase para enviar push
-        // await fetch(`${PB_CONFIG.baseUrl}/api/send-push`, {
-        //     method: 'POST',
-        //     headers: {
-        //         'Content-Type': 'application/json',
-        //         'Authorization': `Bearer ${authState.token}`
-        //     },
-        //     body: JSON.stringify(payload)
-        // });
-        
-        console.log("Notificación PocketBase preparada:", payload);
-    } catch (error) {
-        console.warn("Error al enviar notificación PocketBase:", error);
-    }
 }
 
 const defaultData = {
@@ -844,16 +769,25 @@ function saveAuthState() {
 }
 
 function saveState() {
+    console.log("saveState() called");
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    console.log("Guardado en localStorage");
     queueRemoteSave();
     updateSyncStatus();
 }
 
 function queueRemoteSave() {
-    if (!FIREBASE_CONFIG.enabled) return;
+    console.log("queueRemoteSave() called");
+    console.log("FIREBASE_CONFIG.enabled:", FIREBASE_CONFIG.enabled);
+    if (!FIREBASE_CONFIG.enabled) {
+        console.log("Firebase no está habilitado, no se queuea el guardado");
+        return;
+    }
     window.clearTimeout(remoteSaveTimer);
     setSyncStatus("syncing", "Sincronitzant...");
+    console.log("Queueando guardado a Firebase en", SAVE_DEBOUNCE_MS, "ms");
     remoteSaveTimer = window.setTimeout(() => {
+        console.log("Ejecutando persistStateToFirebase()");
         persistStateToFirebase();
     }, SAVE_DEBOUNCE_MS);
 }
@@ -1072,305 +1006,7 @@ function updateAuthStatus() {
         buttonElement.title = `Sessio: ${label}`;
     } else {
         buttonElement.innerText = "Sessio";
-        buttonElement.title = "Iniciar sessio PocketBase";
-    }
-}
-
-function getPocketBaseHeaders(extra = {}) {
-    const headers = { 
-        ...extra,
-        "Content-Type": "application/json"
-    };
-    
-    // Usar token de autenticación si está disponible
-    if (authState.token) {
-        headers.Authorization = `Bearer ${authState.token}`;
-    }
-    
-    return headers;
-}
-
-async function fetchPocketBaseRecord() {
-    // Solo autenticar si useAuth está habilitado
-    if (PB_CONFIG.useAuth) {
-        try {
-            // Autenticar como admin para asegurar permisos
-            const authResponse = await fetch(
-                buildPocketBaseUrl('/api/admins/auth-with-password'),
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        identity: PB_ADMIN_EMAIL,
-                        password: PB_ADMIN_PASSWORD
-                    })
-                }
-            );
-            
-            if (authResponse.ok) {
-                const authData = await authResponse.json();
-                authState.token = authData.token;
-                saveAuthState();
-            }
-        } catch (error) {
-            console.warn("No se pudo autenticar como admin:", error);
-        }
-    }
-    
-    const filter = encodeURIComponent(`${PB_CONFIG.keyField}="${STORAGE_KEY}"`);
-    const headers = PB_CONFIG.useAuth ? getPocketBaseHeaders() : {};
-    const response = await fetch(
-        buildPocketBaseUrl(`/api/collections/${PB_CONFIG.collection}/records?filter=${filter}&perPage=1`),
-        {
-            headers: headers
-        }
-    );
-    
-    if (!response.ok) {
-        throw new Error(`PocketBase list failed: ${response.status}`);
-    }
-    
-    const payload = await response.json();
-    return payload.items?.[0] || null;
-}
-
-async function persistStateToPocketBase() {
-    if (!PB_CONFIG.enabled || remoteSyncInProgress) return;
-    remoteSyncInProgress = true;
-    setSyncStatus("syncing", "Sincronitzant...");
-
-    try {
-        const existing = await fetchPocketBaseRecord();
-        const body = {
-            [PB_CONFIG.keyField]: STORAGE_KEY,
-            [PB_CONFIG.dataField]: JSON.stringify(state)  // Convertir a JSON string
-        };
-
-        const targetUrl = existing
-            ? buildPocketBaseUrl(`/api/collections/${PB_CONFIG.collection}/records/${existing.id}`)
-            : buildPocketBaseUrl(`/api/collections/${PB_CONFIG.collection}/records`);
-
-        const method = existing ? "PATCH" : "POST";
-        const headers = PB_CONFIG.useAuth ? getPocketBaseHeaders({
-            "Content-Type": "application/json"
-        }) : {
-            "Content-Type": "application/json"
-        };
-        
-        const response = await fetch(targetUrl, {
-            method,
-            headers: headers,
-            body: JSON.stringify(body)
-        });
-
-        if (!response.ok) {
-            throw new Error(`PocketBase save failed: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        setSyncStatus("ok", "Sincronitzat");
-        
-        // Usar el timestamp del servidor para evitar bucles
-        if (result.updated) {
-            const serverTime = new Date(result.updated).getTime();
-            localStorage.setItem('lastRemoteUpdate', serverTime);
-            localStorage.setItem('lastLocalSave', serverTime); // Marcar como guardado por este dispositivo
-        }
-    } catch (error) {
-        console.warn("PocketBase save fallback to localStorage only:", error);
-        setSyncStatus("error", `Error PB: ${error.message}`);
-    } finally {
-        remoteSyncInProgress = false;
-    }
-}
-
-// Sistema de sincronización en tiempo real con WebSocket
-function connectWebSocket() {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        // PocketBase no tiene WebSocket nativo, pero podemos usar el sistema de suscripciones
-        // Por ahora, usaremos polling optimizado con notificaciones visuales
-        console.log("Sistema de sincronización optimizado iniciado");
-    } catch (error) {
-        console.error("Error conectando WebSocket:", error);
-    }
-}
-
-async function checkRemoteChanges() {
-    if (!PB_CONFIG.enabled || remoteSyncInProgress) return;
-    
-    try {
-        const record = await fetchPocketBaseRecord();
-        if (!record) return;
-        
-        let remoteData = record[PB_CONFIG.dataField];
-        
-        // Parsear si viene como string JSON
-        if (typeof remoteData === "string") {
-            try {
-                remoteData = JSON.parse(remoteData);
-            } catch (parseError) {
-                console.error("Error parseando datos remotos:", parseError);
-                return;
-            }
-        }
-        
-        const lastRemoteUpdate = record.updated;
-        const lastLocalUpdate = localStorage.getItem('lastRemoteUpdate');
-        
-        // Si hay cambios remotos más recientes que la última actualización local
-        // Añadir un margen de 1 segundo para evitar bucles
-        const remoteTime = new Date(lastRemoteUpdate).getTime();
-        const localTime = lastLocalUpdate ? parseInt(lastLocalUpdate) : 0;
-        
-        if (lastRemoteUpdate && (remoteTime > localTime + 1000)) {
-            console.log("🔄 Detectados cambios remotos, actualizando estado local...");
-            
-            // Actualizar estado local con datos remotos
-            Object.assign(state, remoteData);
-            normalizeState();
-            renderAll();
-            
-            localStorage.setItem('lastRemoteUpdate', remoteTime);
-            setSyncStatus("updated", "Actualitzat");
-            
-            // Mostrar notificación de actualización más visible
-            showToast("🔄 Dades actualitzades des d'un altre dispositiu", "info");
-            
-            // Sonido de notificación (si el navegador lo permite)
-            try {
-                if (Notification.permission === "granted") {
-                    new Notification("Actualización La Pigota", {
-                        body: "Cambios sincronizados desde otro dispositivo",
-                        icon: "https://cdn-icons-png.flaticon.com/512/426/426833.png"
-                    });
-                }
-            } catch (e) {
-                // El navegador no soporta notificaciones o están bloqueadas
-            }
-            
-            // Volver a estado online después de unos segundos
-            setTimeout(() => {
-                setSyncStatus("ok", "Sincronitzat");
-            }, 2000);
-        }
-    } catch (error) {
-        console.error("Error verificando cambios remotos:", error);
-    }
-}
-
-function startRealtimeSync() {
-    if (!PB_CONFIG.enabled) return;
-    
-    // Iniciar polling para verificar cambios
-    if (realtimeSyncTimer) {
-        clearInterval(realtimeSyncTimer);
-    }
-    
-    realtimeSyncTimer = setInterval(() => {
-        checkRemoteChanges();
-    }, REALTIME_SYNC_INTERVAL);
-    
-    console.log(`🔄 Sincronización en tiempo real iniciada (polling cada ${REALTIME_SYNC_INTERVAL/1000}s)`);
-    console.log("📱 La aplicación detectará cambios de otros dispositivos automáticamente");
-}
-
-function stopRealtimeSync() {
-    if (realtimeSyncTimer) {
-        clearInterval(realtimeSyncTimer);
-        realtimeSyncTimer = null;
-        console.log("Sincronización en tiempo real detenida");
-    }
-}
-
-async function loginPocketBase(email, password) {
-    const response = await fetch(
-        buildPocketBaseUrl(`/api/collections/${PB_CONFIG.authCollection}/auth-with-password`),
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                identity: email,
-                password
-            })
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(`Login failed: ${response.status}`);
-    }
-
-    const payload = await response.json();
-    authState = {
-        token: payload.token,
-        user: payload.record || null
-    };
-    saveAuthState();
-    setSyncStatus("syncing", "Sessio iniciada");
-    
-    // Iniciar sincronización en tiempo real
-    startRealtimeSync();
-}
-
-function logoutPocketBase() {
-    authState = { token: "", user: null };
-    saveAuthState();
-    setSyncStatus("offline", "Local");
-    
-    // Detener sincronización en tiempo real
-    stopRealtimeSync();
-}
-
-async function hydrateStateFromPocketBase() {
-    if (!PB_CONFIG.enabled) return;
-    setSyncStatus("syncing", "Connectant PB...");
-
-    try {
-        const record = await fetchPocketBaseRecord();
-        const remoteData = record?.[PB_CONFIG.dataField];
-        
-        // Si los datos vienen como string JSON, parsearlos
-        if (typeof remoteData === "string") {
-            try {
-                const parsedData = JSON.parse(remoteData);
-                if (!parsedData || typeof parsedData !== "object") {
-                    setSyncStatus("offline", "PB buit, pendent de pujar");
-                    await persistStateToPocketBase();
-                    return;
-                }
-                state = { ...structuredClone(defaultData), ...parsedData };
-            } catch (parseError) {
-                console.error("Error parseando datos remotos:", parseError);
-                setSyncStatus("offline", "PB buit, pendent de pujar");
-                await persistStateToPocketBase();
-                return;
-            }
-        } else if (!remoteData || typeof remoteData !== "object") {
-            setSyncStatus("offline", "PB buit, pendent de pujar");
-            await persistStateToPocketBase();
-            return;
-        } else {
-            state = { ...structuredClone(defaultData), ...remoteData };
-        }
-
-        normalizeState();
-        normalizeState();
-        renderAll({ persist: false });
-        setSyncStatus("ok", "Sincronitzat");
-        
-        // Guardar timestamp de actualización remota
-        if (record.updated) {
-            localStorage.setItem('lastRemoteUpdate', record.updated);
-        }
-        
-        // Iniciar sincronización en tiempo real
-        startRealtimeSync();
-    } catch (error) {
-        console.warn("PocketBase load fallback to localStorage only:", error);
-        setSyncStatus("error", `Error PB: ${error.message}`);
+        buttonElement.title = "Iniciar sessio";
     }
 }
 
@@ -2848,7 +2484,7 @@ function eliminarRespostaForm(sortidaIndex, participantIndex) {
 
 function actualitzarPreguntaFormulari(questionId, text) {
     const cleanText = text.trim();
-    const question = state.formulariPreguntes.find((item) => item.pregunta_id === questionId || item.id === questionId);
+    const question = state.formulariPreguntes.find((item) => item.id === questionId);
     if (!question) return;
     if (!cleanText) {
         renderPreguntesConfig();
@@ -2856,7 +2492,7 @@ function actualitzarPreguntaFormulari(questionId, text) {
         return;
     }
     const duplicate = state.formulariPreguntes.some(
-        (item) => (item.pregunta_id !== questionId && item.id !== questionId) && item.text.toLocaleLowerCase("ca") === cleanText.toLocaleLowerCase("ca")
+        (item) => item.id !== questionId && item.text.toLocaleLowerCase("ca") === cleanText.toLocaleLowerCase("ca")
     );
     if (duplicate) {
         renderPreguntesConfig();
@@ -2865,81 +2501,14 @@ function actualitzarPreguntaFormulari(questionId, text) {
     }
     question.text = cleanText;
     renderAll();
-    
-    // Sincronizar con PocketBase
-    if (PB_CONFIG.enabled) {
-        syncQuestionUpdateToPocketBase(question);
-    }
-}
-
-async function syncQuestionUpdateToPocketBase(question) {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        const authResponse = await fetch(
-            buildPocketBaseUrl('/api/admins/auth-with-password'),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identity: PB_ADMIN_EMAIL,
-                    password: PB_ADMIN_PASSWORD
-                })
-            }
-        );
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            const token = authData.token;
-            
-            // Buscar el registro existente
-            const filter = encodeURIComponent(`pregunta_id="${question.pregunta_id || question.id}"`);
-            const listResponse = await fetch(
-                buildPocketBaseUrl(`/api/collections/formulari_preguntes/records?filter=${filter}&perPage=1`),
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                }
-            );
-            
-            if (listResponse.ok) {
-                const listData = await listResponse.json();
-                const existingRecord = listData.items?.[0];
-                
-                if (existingRecord) {
-                    // Actualizar registro existente
-                    const updateResponse = await fetch(
-                        buildPocketBaseUrl(`/api/collections/formulari_preguntes/records/${existingRecord.id}`),
-                        {
-                            method: 'PATCH',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify({ text: question.text })
-                        }
-                    );
-                    
-                    if (updateResponse.ok) {
-                        console.log("✓ Pregunta actualizada en PocketBase");
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error("Error actualizando pregunta en PocketBase:", error);
-    }
 }
 
 function eliminarPreguntaFormulari(questionId) {
-    const question = state.formulariPreguntes.find((item) => item.pregunta_id === questionId || item.id === questionId);
+    const question = state.formulariPreguntes.find((item) => item.id === questionId);
     if (!question || question.fixa) return;
     if (!confirmDelete(question.text)) return;
-    
-    const questionToDelete = { ...question }; // Guardar referencia para sincronización
-    
-    state.formulariPreguntes = state.formulariPreguntes.filter((item) => item.pregunta_id !== questionId && item.id !== questionId);
+
+    state.formulariPreguntes = state.formulariPreguntes.filter((item) => item.id !== questionId);
     state.sortides.forEach((sortida) => {
         sortida.assistencia.forEach((item) => {
             if (item.extra) {
@@ -2948,71 +2517,10 @@ function eliminarPreguntaFormulari(questionId) {
         });
     });
     renderAll();
-    
-    // Sincronizar eliminación con PocketBase
-    if (PB_CONFIG.enabled) {
-        syncQuestionDeleteToPocketBase(questionToDelete);
-    }
-}
-
-async function syncQuestionDeleteToPocketBase(question) {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        const authResponse = await fetch(
-            buildPocketBaseUrl('/api/admins/auth-with-password'),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identity: PB_ADMIN_EMAIL,
-                    password: PB_ADMIN_PASSWORD
-                })
-            }
-        );
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            const token = authData.token;
-            
-            // Buscar y eliminar el registro
-            const filter = encodeURIComponent(`pregunta_id="${question.pregunta_id || question.id}"`);
-            const listResponse = await fetch(
-                buildPocketBaseUrl(`/api/collections/formulari_preguntes/records?filter=${filter}&perPage=1`),
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                }
-            );
-            
-            if (listResponse.ok) {
-                const listData = await listResponse.json();
-                const existingRecord = listData.items?.[0];
-                
-                if (existingRecord) {
-                    const deleteResponse = await fetch(
-                        buildPocketBaseUrl(`/api/collections/formulari_preguntes/records/${existingRecord.id}`),
-                        {
-                            method: 'DELETE',
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        }
-                    );
-                    
-                    if (deleteResponse.ok) {
-                        console.log("✓ Pregunta eliminada de PocketBase");
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error("Error eliminando pregunta de PocketBase:", error);
-    }
 }
 
 function addQuestionToForm(text, tipus) {
+    console.log("addQuestionToForm() called with:", text, tipus);
     const cleanText = text.trim();
     if (!cleanText) {
         showToast("Escriu una pregunta abans d'afegir-la.", "warning");
@@ -3025,73 +2533,21 @@ function addQuestionToForm(text, tipus) {
         showToast("Aquesta pregunta ja existeix i no s'ha duplicat.", "warning");
         return false;
     }
-    
+
+    const questionId = createQuestionId(cleanText);
+    console.log("Generated questionId:", questionId);
     const newQuestion = {
-        pregunta_id: createQuestionId(cleanText), // Usar pregunta_id para PocketBase
+        id: questionId,
         text: cleanText,
         tipus: tipus || "text",
         requerida: false,
         fixa: false
     };
-    
-    state.formulariPreguntes.push(newQuestion);
-    
-    // Sincronizar con PocketBase si está habilitado
-    if (PB_CONFIG.enabled) {
-        syncQuestionToPocketBase(newQuestion);
-    }
-    
-    return true;
-}
 
-// Función para sincronizar una pregunta individual con PocketBase
-async function syncQuestionToPocketBase(question) {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        console.log("Sincronizando pregunta con PocketBase:", question.text);
-        
-        const authResponse = await fetch(
-            buildPocketBaseUrl('/api/admins/auth-with-password'),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identity: PB_ADMIN_EMAIL,
-                    password: PB_ADMIN_PASSWORD
-                })
-            }
-        );
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            const token = authData.token;
-            
-            // Guardar en colección formulari_preguntes
-            const response = await fetch(
-                buildPocketBaseUrl('/api/collections/formulari_preguntes/records'),
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(question)
-                }
-            );
-            
-            if (response.ok) {
-                console.log("✓ Pregunta sincronizada con PocketBase:", question.text);
-                showToast("Pregunta guardada en PocketBase", "success");
-            } else {
-                const errorText = await response.text();
-                console.error("✗ Error sincronizando pregunta:", errorText);
-                showToast("Error guardando en PocketBase", "error");
-            }
-        }
-    } catch (error) {
-        console.error("Error en sincronización individual:", error);
-    }
+    state.formulariPreguntes.push(newQuestion);
+    console.log("Pregunta añadida. Total preguntas:", state.formulariPreguntes.length);
+
+    return true;
 }
 
 function readDynamicFormResponse(prefix) {
@@ -3405,7 +2861,7 @@ function guardarPioSortida() {
 
 function handleAuthAction() {
     if (authState.token) {
-        logoutPocketBase();
+        logoutFirebase();
         return;
     }
     document.getElementById("auth-feedback").innerText = "";
@@ -3894,152 +3350,14 @@ window.onclick = (event) => {
     });
 };
 
-// Función para cargar preguntas desde PocketBase
-async function loadQuestionsFromPocketBase() {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        const authResponse = await fetch(
-            buildPocketBaseUrl('/api/admins/auth-with-password'),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identity: PB_ADMIN_EMAIL,
-                    password: PB_ADMIN_PASSWORD
-                })
-            }
-        );
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            const token = authData.token;
-            
-            const response = await fetch(
-                buildPocketBaseUrl('/api/collections/formulari_preguntes/records'),
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                }
-            );
-            
-            if (response.ok) {
-                const data = await response.json();
-                const questions = data.items || [];
-                
-                if (questions.length > 0) {
-                    console.log("Cargando preguntas desde PocketBase:", questions.length);
-                    // Mapear pregunta_id a id para compatibilidad
-                    state.formulariPreguntes = questions.map(q => ({
-                        id: q.pregunta_id || q.id,
-                        pregunta_id: q.pregunta_id || q.id,
-                        text: q.text,
-                        tipus: q.tipus,
-                        requerida: q.requerida,
-                        fixa: q.fixa
-                    }));
-                    renderAll();
-                } else {
-                    console.log("No hay preguntas en PocketBase, usando las locales");
-                    // Si no hay preguntas en PocketBase, guardar las iniciales
-                    await saveInitialQuestionsToPocketBase();
-                }
-            }
-        }
-    } catch (error) {
-        console.error("Error cargando preguntas desde PocketBase:", error);
-    }
-}
-
-// Función para guardar las preguntas iniciales en PocketBase
-async function saveInitialQuestionsToPocketBase() {
-    if (!PB_CONFIG.enabled) return;
-    
-    try {
-        const authResponse = await fetch(
-            buildPocketBaseUrl('/api/admins/auth-with-password'),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identity: PB_ADMIN_EMAIL,
-                    password: PB_ADMIN_PASSWORD
-                })
-            }
-        );
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            const token = authData.token;
-            
-            // Convertir preguntas al formato de PocketBase
-            const questionsToSave = defaultData.formulariPreguntes.map(q => ({
-                pregunta_id: q.id,
-                text: q.text,
-                tipus: q.tipus,
-                requerida: q.requerida,
-                fixa: q.fixa
-            }));
-            
-            for (const question of questionsToSave) {
-                await fetch(
-                    buildPocketBaseUrl('/api/collections/formulari_preguntes/records'),
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(question)
-                    }
-                );
-            }
-            
-            console.log("Preguntas iniciales guardadas en PocketBase");
-        }
-    } catch (error) {
-        console.error("Error guardando preguntas iniciales:", error);
-    }
-}
-
 try {
+    initializeFirebase();
     updateAuthStatus();
     initializeNotificationButton();
     renderAll({ persist: false });
-    // hydrateStateFromPocketBase(); // Desactivado - ahora usamos Firebase
-    
-    // Cargar preguntas desde PocketBase después de hidratar el estado
-    // setTimeout(() => {
-    //     loadQuestionsFromPocketBase();
-    // }, 1000);
 } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
 }
-
-// Sobrescribir funciones de PocketBase para evitar errores
-window.loginPocketBase = async function(email, password) {
-    return await loginFirebase(email, password);
-};
-
-window.logoutPocketBase = async function() {
-    return await logoutFirebase();
-};
-
-window.persistStateToPocketBase = async function() {
-    return await persistStateToFirebase();
-};
-
-window.fetchPocketBaseRecord = async function() {
-    return await fetchFirebaseData();
-};
-
-// Desactivar funciones de sincronización de preguntas que causan errores
-window.syncQuestionUpdateToPocketBase = async function() { return; };
-window.syncQuestionDeleteToPocketBase = async function() { return; };
-window.syncQuestionToPocketBase = async function() { return; };
-window.loadQuestionsFromPocketBase = async function() { return; };
-window.saveInitialQuestionsToPocketBase = async function() { return; };
 
 // Sincronización en tiempo real con Firebase
 let firebaseDataListener = null;
@@ -4047,12 +3365,18 @@ let firebaseDataListener = null;
 // Cargar estado desde Firebase al iniciar sesión
 async function loadStateFromFirebase() {
     if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
-    
+
+    // Solo cargar si hay usuario autenticado
+    if (!authState.user) {
+        console.log("No hay usuario autenticado, no se cargan datos desde Firebase");
+        return;
+    }
+
     try {
         setSyncStatus("syncing", "Carregant desde Firebase...");
         const snapshot = await firebaseDatabase.ref(STORAGE_KEY).once('value');
         const data = snapshot.val();
-        
+
         if (data) {
             const parsedData = JSON.parse(data);
             state = parsedData;
