@@ -9,25 +9,33 @@ const VESTUARI_AUTH_KEY = "pigota_vestuari_auth_v1";
 let firebaseApp = null;
 let firebaseAuth = null;
 let firebaseDatabase = null;
+let firebaseDataListener = null;
+
+function isFirebaseAuthenticated() {
+    return Boolean(authState.user || firebaseAuth?.currentUser);
+}
 
 function initializeFirebase() {
-    if (!FIREBASE_CONFIG.enabled) return;
-    
+    if (!FIREBASE_CONFIG.enabled || firebaseApp) return;
+
     try {
-        firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+        const { enabled, ...firebaseConfig } = FIREBASE_CONFIG;
+        firebaseApp = firebase.initializeApp(firebaseConfig);
         firebaseAuth = firebase.auth();
         firebaseDatabase = firebase.database();
         console.log("Firebase inicializado correctamente");
-        
-        // Configurar listener de autenticación
+
         firebaseAuth.onAuthStateChanged((user) => {
             if (user) {
                 authState.user = user;
                 saveAuthState();
                 setSyncStatus("syncing", "Sessio iniciada");
+                loadStateFromFirebase();
+                setupFirebaseRealtimeListener();
             } else {
                 authState.user = null;
                 saveAuthState();
+                teardownFirebaseRealtimeListener();
                 setSyncStatus("offline", "Local");
             }
         });
@@ -82,7 +90,7 @@ async function fetchFirebaseData() {
 }
 
 async function persistStateToFirebase() {
-    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase || !isFirebaseAuthenticated()) return;
     remoteSyncInProgress = true;
     setSyncStatus("syncing", "Sincronitzant...");
 
@@ -97,14 +105,59 @@ async function persistStateToFirebase() {
     }
 }
 
-// Reemplazar funciones de PocketBase con Firebase
-const originalPersistStateToPocketBase = window.persistStateToPocketBase;
-window.persistStateToPocketBase = async function() {
-    if (FIREBASE_CONFIG.enabled) {
-        return await persistStateToFirebase();
+function applyRemoteState(parsedData) {
+    state = parsedData;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    normalizeState();
+    renderAll({ persist: false });
+}
+
+async function loadStateFromFirebase() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase || !isFirebaseAuthenticated()) return;
+
+    try {
+        setSyncStatus("syncing", "Carregant desde Firebase...");
+        const snapshot = await firebaseDatabase.ref(STORAGE_KEY).once("value");
+        const data = snapshot.val();
+
+        if (data) {
+            applyRemoteState(JSON.parse(data));
+            setSyncStatus("ok", "Sincronitzat des de Firebase");
+            console.log("Estado cargado desde Firebase correctamente");
+        } else {
+            console.log("No hay datos en Firebase, usando estado local");
+            setSyncStatus("ok", "Mode local");
+        }
+    } catch (error) {
+        console.error("Error cargando estado desde Firebase:", error);
+        setSyncStatus("error", "Error carregant Firebase");
     }
-    return await originalPersistStateToPocketBase();
-};
+}
+
+function setupFirebaseRealtimeListener() {
+    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase || !isFirebaseAuthenticated()) return;
+
+    teardownFirebaseRealtimeListener();
+
+    try {
+        firebaseDataListener = (snapshot) => {
+            if (remoteSyncInProgress) return;
+            const data = snapshot.val();
+            if (!data) return;
+            applyRemoteState(JSON.parse(data));
+            setSyncStatus("ok", "Sincronitzat en temps real");
+        };
+        firebaseDatabase.ref(STORAGE_KEY).on("value", firebaseDataListener);
+    } catch (error) {
+        console.error("Error configurando listener en tiempo real:", error);
+    }
+}
+
+function teardownFirebaseRealtimeListener() {
+    if (!firebaseDatabase || !firebaseDataListener) return;
+    firebaseDatabase.ref(STORAGE_KEY).off("value", firebaseDataListener);
+    firebaseDataListener = null;
+}
 
 const FIREBASE_CONFIG = {
     enabled: true, // Activado para implementación limpia
@@ -117,6 +170,15 @@ const FIREBASE_CONFIG = {
     appId: "1:211669164649:web:daeb4f52d8def6276278f8",
     measurementId: "G-79XHY204E2"
 };
+
+// PocketBase desactivado (stub para evitar ReferenceError en codigo legacy)
+const PB_CONFIG = { enabled: false };
+const PB_ADMIN_EMAIL = "";
+const PB_ADMIN_PASSWORD = "";
+
+function buildPocketBaseUrl() {
+    return "about:blank";
+}
 
 // Sistema de notificaciones
 const NOTIFICATION_CONFIG = {
@@ -806,9 +868,6 @@ if (isFreshInstall) {
     mergeSeedData();
 }
 
-// Inicializar Firebase inmediatamente
-initializeFirebase();
-
 function loadState() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return structuredClone(defaultData);
@@ -850,7 +909,7 @@ function saveState() {
 }
 
 function queueRemoteSave() {
-    if (!FIREBASE_CONFIG.enabled) return;
+    if (!FIREBASE_CONFIG.enabled || !isFirebaseAuthenticated()) return;
     window.clearTimeout(remoteSaveTimer);
     setSyncStatus("syncing", "Sincronitzant...");
     remoteSaveTimer = window.setTimeout(() => {
@@ -1066,13 +1125,13 @@ function updateAuthStatus() {
     const buttonElement = document.getElementById("auth-action-btn");
     if (!buttonElement) return;
 
-    if (authState.token) {
+    if (isFirebaseAuthenticated()) {
         const label = authState.user?.email || authState.user?.username || "Connectat";
         buttonElement.innerText = "Sortir";
         buttonElement.title = `Sessio: ${label}`;
     } else {
         buttonElement.innerText = "Sessio";
-        buttonElement.title = "Iniciar sessio PocketBase";
+        buttonElement.title = "Iniciar sessio Firebase";
     }
 }
 
@@ -3404,8 +3463,8 @@ function guardarPioSortida() {
 }
 
 function handleAuthAction() {
-    if (authState.token) {
-        logoutPocketBase();
+    if (isFirebaseAuthenticated()) {
+        logoutFirebase();
         return;
     }
     document.getElementById("auth-feedback").innerText = "";
@@ -4004,104 +4063,10 @@ async function saveInitialQuestionsToPocketBase() {
 }
 
 try {
+    initializeFirebase();
     updateAuthStatus();
     initializeNotificationButton();
     renderAll({ persist: false });
-    // hydrateStateFromPocketBase(); // Desactivado - ahora usamos Firebase
-    
-    // Cargar preguntas desde PocketBase después de hidratar el estado
-    // setTimeout(() => {
-    //     loadQuestionsFromPocketBase();
-    // }, 1000);
 } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
 }
-
-// Sobrescribir funciones de PocketBase para evitar errores
-window.loginPocketBase = async function(email, password) {
-    return await loginFirebase(email, password);
-};
-
-window.logoutPocketBase = async function() {
-    return await logoutFirebase();
-};
-
-window.persistStateToPocketBase = async function() {
-    return await persistStateToFirebase();
-};
-
-window.fetchPocketBaseRecord = async function() {
-    return await fetchFirebaseData();
-};
-
-// Desactivar funciones de sincronización de preguntas que causan errores
-window.syncQuestionUpdateToPocketBase = async function() { return; };
-window.syncQuestionDeleteToPocketBase = async function() { return; };
-window.syncQuestionToPocketBase = async function() { return; };
-window.loadQuestionsFromPocketBase = async function() { return; };
-window.saveInitialQuestionsToPocketBase = async function() { return; };
-
-// Sincronización en tiempo real con Firebase
-let firebaseDataListener = null;
-
-// Cargar estado desde Firebase al iniciar sesión
-async function loadStateFromFirebase() {
-    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
-    
-    try {
-        setSyncStatus("syncing", "Carregant desde Firebase...");
-        const snapshot = await firebaseDatabase.ref(STORAGE_KEY).once('value');
-        const data = snapshot.val();
-        
-        if (data) {
-            const parsedData = JSON.parse(data);
-            state = parsedData;
-            saveState();
-            normalizeState();
-            renderAll();
-            setSyncStatus("ok", "Sincronitzat des de Firebase");
-            console.log("Estado cargado desde Firebase correctamente");
-        } else {
-            console.log("No hay datos en Firebase, usando estado local");
-            setSyncStatus("ok", "Mode local");
-        }
-    } catch (error) {
-        console.error("Error cargando estado desde Firebase:", error);
-        setSyncStatus("error", "Error carregant Firebase");
-    }
-}
-
-// Configurar listener en tiempo real
-function setupFirebaseRealtimeListener() {
-    if (!FIREBASE_CONFIG.enabled || !firebaseDatabase) return;
-    
-    try {
-        firebaseDataListener = firebaseDatabase.ref(STORAGE_KEY).on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const parsedData = JSON.parse(data);
-                state = parsedData;
-                saveState();
-                normalizeState();
-                renderAll();
-                setSyncStatus("ok", "Sincronitzat en temps real");
-                console.log("Estado actualizado desde Firebase en tiempo real");
-            }
-        });
-        console.log("Listener en tiempo real configurado");
-    } catch (error) {
-        console.error("Error configurando listener en tiempo real:", error);
-    }
-}
-
-// Actualizar la función de login para cargar datos y configurar listener
-const originalLoginFirebase = loginFirebase;
-loginFirebase = async function(email, password) {
-    await originalLoginFirebase(email, password);
-    
-    // Cargar datos desde Firebase
-    await loadStateFromFirebase();
-    
-    // Configurar listener en tiempo real
-    setupFirebaseRealtimeListener();
-};
