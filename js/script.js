@@ -838,10 +838,12 @@ const defaultData = {
         { nom: "Emma", daltTalla: "P", daltEstat: "guardarropa", baixTalla: "P", baixEstat: "guardarropa" },
         { nom: "Luca", daltTalla: "ESPECIALS", daltEstat: "guardarropa", baixTalla: "ESPECIALS", baixEstat: "guardarropa" }
     ],
-    tabalers: [
-        { nom: "Manel", tipus: "adult", edat: 34, assajosMes: 2 },
-        { nom: "Martina", tipus: "infantil", edat: 10, assajosMes: 1 },
-        { nom: "Nova incorporacio", tipus: "adult", edat: 21, assajosMes: 0 }
+    tabalers: [], // Se mantiene por compatibilidad pero no se muestra en la UI
+    assajos: [], // Estructura: { id, data, hora, lloc, notes, canvis: { hora, lloc, cancelat }, recordatorisActivados: true, assistencia: { userId: { estat: 'confirmat'|'no'|'duda', instrument: 'tabal'|'caixa'|'timbal'|'bombo' } }, xat: [] }
+    ritmos: [
+        { nom: "Toc de sortida", tipus: "marxa", fitxerAudio: "", descripcio: "Ritme bàsic per començar els correfocs" },
+        { nom: "Marxa del dimoni", tipus: "marxa", fitxerAudio: "", descripcio: "Marxa tradicional de la colla" },
+        { nom: "Ball de diables", tipus: "ball", fitxerAudio: "", descripcio: "Ritme per al ball tradicional" }
     ],
     bestiari: [
         {
@@ -1491,6 +1493,12 @@ function renderAll(options = {}) {
         renderVestuari();
         renderTabals();
         renderBestiari();
+        // Inicializar calendario de Tabals si estamos en esa pestaña
+        const tabalsTab = document.getElementById('tab-tabals');
+        if (tabalsTab && tabalsTab.classList.contains('active')) {
+            renderCalendar();
+            renderAssajosList();
+        }
         if (persist) saveState();
     } catch (error) {
         console.error("Error en renderAll:", error);
@@ -1516,17 +1524,21 @@ function confirmDelete(label) {
 
 function renderDashboard() {
     const tasquesObertes = state.tasques.filter((task) => task.estat !== "feta");
-    const tabalersAptes = state.tabalers.filter((member) => esAptePerSortida(member)).length;
+    const assajosMes = state.assajos.filter(a => {
+        const assaigDate = new Date(a.data);
+        const now = new Date();
+        return assaigDate.getMonth() === now.getMonth() && assaigDate.getFullYear() === now.getFullYear();
+    }).length;
     const prioritariesCount = state.tasques.filter((task) => task.prioritat === "alta" && task.estat !== "feta").length;
 
     document.getElementById("dashboard-tareas-abiertas").innerText = tasquesObertes.length;
     document.getElementById("metric-sortides").innerText = state.sortides.length;
-    document.getElementById("metric-tabalers").innerText = tabalersAptes;
+    document.getElementById("metric-tabalers").innerText = assajosMes;
     document.getElementById("metric-piro").innerText = state.sortides.filter(s => Object.values(s.piroUsada || {}).some(v => v > 0)).length;
     document.getElementById("metric-prioritats").innerText = prioritariesCount;
 
     document.getElementById("dashboard-resumen").innerText =
-        `La junta te ${tasquesObertes.length} tasques actives, ${state.sortides.length} sortides en seguiment i ${tabalersAptes} tabalers aptes segons la norma minima d'assaig mensual.`;
+        `La junta te ${tasquesObertes.length} tasques actives, ${state.sortides.length} sortides en seguiment i ${assajosMes} assajos aquest mes.`;
 }
 
 function renderJunta() {
@@ -2261,20 +2273,487 @@ function renderTabals() {
         .join("");
 }
 
+// Funciones deprecated - ya no se usan en la UI tras eliminar tabalers
 function esAptePerSortida(member) {
-    if (member.tipus === "infantil") return member.edat >= 5 && member.assajosMes >= 1;
-    return member.assajosMes >= 1;
+    return true;
 }
 
 function explicacioAptitud(member) {
-    if (member.tipus === "infantil" && member.edat < 5) {
-        return "No apte: l'edat minima definida al document de tabals es de 5 anys.";
-    }
-    if (member.assajosMes < 1) {
-        return "No apte: la junta de tabals proposa minim un assaig mensual per sortir.";
-    }
-    return "A punt per sortir segons les normes carregades a l'app.";
+    return "";
 }
+
+// ===== TABALS SECTION - NEW DESIGN =====
+
+let currentCalendarDate = new Date();
+let currentAssaigIndex = null;
+let currentUser = "Usuari"; // En producción, esto vendría de Firebase Auth
+
+// Navegación de sub-tabs de Tabals
+function showTabalsSubTab(tabId) {
+    document.querySelectorAll('.tabals-subcontent').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tabals-subnav-item').forEach(el => el.classList.remove('active'));
+
+    document.getElementById(tabId).classList.add('active');
+    document.getElementById('btn-' + tabId).classList.add('active');
+
+    if (tabId === 'tabals-calendari') {
+        renderCalendar();
+        renderAssajosList();
+    } else if (tabId === 'tabals-ritmos') {
+        renderRitmos();
+    }
+}
+
+// Calendario
+function renderCalendar() {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+
+    const monthNames = ['Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny',
+                       'Juliol', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre'];
+
+    document.getElementById('calendar-month-year').textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    // getDay() devuelve 0 para domingo, 1 para lunes, etc.
+    // Queremos que lunes sea 0, así que ajustamos: (day + 6) % 7
+    const startingDay = (firstDay.getDay() + 6) % 7;
+    const totalDays = lastDay.getDate();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let calendarHTML = '';
+
+    // Días vacíos antes del primer día del mes
+    for (let i = 0; i < startingDay; i++) {
+        calendarHTML += '<div class="calendar-day empty"></div>';
+    }
+
+    // Días del mes
+    for (let day = 1; day <= totalDays; day++) {
+        const date = new Date(year, month, day);
+        const dayOfWeek = date.getDay();
+        const isFriday = dayOfWeek === 5;
+        const isToday = date.getTime() === today.getTime();
+
+        // Buscar si hay ensayo este día - usar formato local
+        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const assaigDelDia = state.assajos.find(a => a.data === dateString);
+
+        let classes = 'calendar-day';
+        if (isFriday) classes += ' viernes';
+        if (isToday) classes += ' today';
+
+        let content = `<span class="day-number">${day}</span>`;
+        if (assaigDelDia && assaigDelDia.assistencia) {
+            const confirmats = Object.keys(assaigDelDia.assistencia).length;
+            if (confirmats > 0) {
+                content += `<span class="assaig-count">${confirmats} ${confirmats === 1 ? 'persona' : 'persones'}</span>`;
+            }
+        }
+
+        calendarHTML += `<div class="${classes}" onclick="handleCalendarClick(${year}, ${month}, ${day})">${content}</div>`;
+    }
+
+    document.getElementById('calendar-days').innerHTML = calendarHTML;
+}
+
+function changeMonth(delta) {
+    currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
+    renderCalendar();
+    renderAssajosList();
+}
+
+function handleCalendarClick(year, month, day) {
+    const date = new Date(year, month, day);
+    // Formatear fecha localmente para evitar problemas de zona horaria
+    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    // Buscar si ya hay asistencia registrada para este día
+    let assaigDelDia = state.assajos.find(a => a.data === dateString);
+
+    if (!assaigDelDia) {
+        // Si no existe, crear un ensayo básico para el viernes
+        assaigDelDia = {
+            data: dateString,
+            hora: '20:00',
+            lloc: 'Lloc habitual',
+            notes: '',
+            assistencia: {},
+            xat: [],
+            recordatorisActivats: true,
+            canvis: {}
+        };
+        state.assajos.push(assaigDelDia);
+    }
+
+    openSimpleRSVPModal(state.assajos.indexOf(assaigDelDia));
+}
+
+// Lista de ensayos
+function renderAssajosList() {
+    const container = document.getElementById('lista-assajos');
+    if (!container) return;
+
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+
+    const assajosDelMes = state.assajos.filter(a => {
+        const assaigDate = new Date(a.data);
+        return assaigDate.getFullYear() === year && assaigDate.getMonth() === month;
+    }).sort((a, b) => new Date(a.data) - new Date(b.data));
+
+    if (assajosDelMes.length === 0) {
+        container.innerHTML = '<p class="small-text">Clica en els divendres del calendari per afegir la teva assistència.</p>';
+        return;
+    }
+
+    container.innerHTML = assajosDelMes.map((assaig, index) => {
+        const realIndex = state.assajos.indexOf(assaig);
+        const date = new Date(assaig.data);
+        const formattedDate = date.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        const assistents = Object.keys(assaig.assistencia || {});
+        const tieneCambio = assaig.canvis && (assaig.canvis.hora || assaig.canvis.lloc || assaig.canvis.cancelat);
+
+        const assistentsList = assistents.length > 0
+            ? assistents.map(nom => `<span class="badge baixa">${nom}</span>`).join(' ')
+            : '<span class="small-text">Encara no hi ha ningú confirmat</span>';
+
+        return `
+            <article class="assaig-card ${tieneCambio ? 'tiene-cambio' : ''}" onclick="openSimpleRSVPModal(${realIndex})">
+                <div class="assaig-card-header">
+                    <div>
+                        <div class="assaig-card-date">${formattedDate}</div>
+                        <div class="assaig-card-time">${assaig.hora || '20:00'}</div>
+                    </div>
+                </div>
+                <div class="assaig-card-location">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>${assaig.lloc}</span>
+                </div>
+                <div class="assaig-assistents">
+                    <strong>Qui vindrà:</strong>
+                    <div class="assistents-badges">${assistentsList}</div>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    // Mostrar banner si hay cambios
+    const algunCambio = assajosDelMes.some(a => a.canvis && (a.canvis.hora || a.canvis.lloc || a.canvis.cancelat));
+    const banner = document.getElementById('assaig-cambio-banner');
+    if (banner) {
+        if (algunCambio) {
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+}
+
+// Modal RSVP simple
+function openSimpleRSVPModal(index) {
+    currentAssaigIndex = index;
+    const assaig = state.assajos[index];
+
+    const date = new Date(assaig.data);
+    const formattedDate = date.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    document.getElementById('rassaig-info').innerHTML = `
+        <strong>${formattedDate}</strong>
+        <span>${assaig.hora || '20:00'} · ${assaig.lloc}</span>
+    `;
+
+    document.getElementById('form-simple-rsvp').reset();
+    renderAssistentsList();
+    toggleModal('modal-rsvp');
+}
+
+function renderAssistentsList() {
+    const container = document.getElementById('rsvp-assistents-list');
+    const assaig = state.assajos[currentAssaigIndex];
+
+    if (!assaig.assistencia || Object.keys(assaig.assistencia).length === 0) {
+        container.innerHTML = '<p class="small-text">Encara no hi ha ningú confirmat.</p>';
+        return;
+    }
+
+    container.innerHTML = Object.entries(assaig.assistencia).map(([nom, data]) => {
+        const time = new Date(data.timestamp).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
+        return `
+            <div class="assistent-item">
+                <span class="assistent-name">${nom}</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="assistent-time">${time}</span>
+                    <button type="button" onclick="removeAssistent('${nom}')" class="assistent-remove">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function removeAssistent(nom) {
+    if (currentAssaigIndex === null) return;
+    delete state.assajos[currentAssaigIndex].assistencia[nom];
+    renderAssistentsList();
+    renderCalendar();
+    renderAssajosList();
+}
+
+// Chat/Notas del ensayo
+function openXatAssaig(index) {
+    currentAssaigIndex = index;
+    const assaig = state.assajos[index];
+    
+    const date = new Date(assaig.data);
+    const formattedDate = date.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    
+    document.getElementById('xat-assaig-info').innerHTML = `
+        <strong>${formattedDate}</strong>
+        <span>${assaig.hora || '20:00'} · ${assaig.lloc}</span>
+    `;
+    
+    renderXatMessages();
+    toggleModal('modal-xat-assaig');
+}
+
+function renderXatMessages() {
+    const container = document.getElementById('xat-assaig-messages');
+    const assaig = state.assajos[currentAssaigIndex];
+    
+    if (!assaig.xat || assaig.xat.length === 0) {
+        container.innerHTML = '<p class="small-text">No hi ha notes per aquest assaig.</p>';
+        return;
+    }
+    
+    container.innerHTML = assaig.xat.map(msg => {
+        const time = new Date(msg.timestamp).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
+        return `
+            <div class="xat-message">
+                <div class="xat-message-header">
+                    <span class="xat-message-author">${msg.autor}</span>
+                    <span class="xat-message-time">${time}</span>
+                </div>
+                <div class="xat-message-text">${msg.text}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Ritmos
+function renderRitmos() {
+    const container = document.getElementById('lista-ritmos');
+    if (!container) return;
+    
+    if (state.ritmos.length === 0) {
+        container.innerHTML = '<p class="small-text">No hi ha ritmes carregats.</p>';
+        return;
+    }
+    
+    container.innerHTML = state.ritmos.map((ritmo, index) => `
+        <article class="ritmo-card">
+            <div class="ritmo-card-header">
+                <h3>${ritmo.nom}</h3>
+                <span class="ritmo-badge">${ritmo.tipus}</span>
+            </div>
+            <p>${ritmo.descripcio || ''}</p>
+            ${ritmo.fitxerAudio ? `
+                <div class="ritmo-audio-player">
+                    <audio controls>
+                        <source src="${ritmo.fitxerAudio}" type="audio/mpeg">
+                        El teu navegador no suporta àudio.
+                    </audio>
+                </div>
+            ` : ''}
+            <div class="ritmo-actions">
+                <button onclick="editarRitmo(${index})">Editar</button>
+                <button onclick="eliminarRitmo(${index})">Eliminar</button>
+            </div>
+        </article>
+    `).join('');
+}
+
+function openRitmoModal() {
+    document.getElementById('modal-ritmo-title').textContent = 'Nou ritme';
+    document.getElementById('form-ritmo').reset();
+    document.getElementById('ritmo-index').value = '';
+    toggleModal('modal-ritmo');
+}
+
+function editarRitmo(index) {
+    const ritmo = state.ritmos[index];
+    document.getElementById('modal-ritmo-title').textContent = 'Editar ritme';
+    document.getElementById('ritmo-index').value = index;
+    document.getElementById('ritmo-nom').value = ritmo.nom;
+    document.getElementById('ritmo-tipus').value = ritmo.tipus;
+    document.getElementById('ritmo-audio').value = ritmo.fitxerAudio || '';
+    document.getElementById('ritmo-descripcio').value = ritmo.descripcio || '';
+    toggleModal('modal-ritmo');
+}
+
+function eliminarRitmo(index) {
+    const ritmo = state.ritmos[index];
+    if (!ritmo || !confirmDelete(ritmo.nom)) return;
+    state.ritmos.splice(index, 1);
+    renderRitmos();
+}
+
+// Banner de cambios
+function hideCambioBanner() {
+    document.getElementById('assaig-cambio-banner').classList.add('hidden');
+}
+
+// Toggle de recordatorios
+function toggleReminderSettings() {
+    const enabled = document.getElementById('reminder-toggle').checked;
+    // Aquí se implementaría la lógica de notificaciones
+    if (enabled) {
+        showToast('Recordatoris activats', 'success');
+    } else {
+        showToast('Recordatoris desactivats', 'success');
+    }
+}
+
+// RenderTabals simplificado (se mantiene para compatibilidad pero no se usa en la UI)
+renderTabals = function() {
+    // Ya no se muestra en la UI, pero se mantiene la función por compatibilidad
+    const recuentContainer = document.getElementById("recuent-tabalers");
+    const tabalersContainer = document.getElementById("lista-tabalers");
+
+    if (!recuentContainer || !tabalersContainer) return;
+
+    const aptesAdults = state.tabalers.filter((member) => member.tipus === "adult" && member.assajosMes >= 1).length;
+    const aptesInfantils = state.tabalers.filter((member) => member.tipus === "infantil" && member.assajosMes >= 1).length;
+    const totalAdults = state.tabalers.filter((member) => member.tipus === "adult").length;
+    const totalInfantils = state.tabalers.filter((member) => member.tipus === "infantil").length;
+
+    recuentContainer.innerHTML = `
+        <div class="board-card">
+            <div class="stats-grid">
+                <div class="metric-card">
+                    <span>Adults aptes</span>
+                    <strong>${aptesAdults}/${totalAdults}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Infantils aptes</span>
+                    <strong>${aptesInfantils}/${totalInfantils}</strong>
+                </div>
+            </div>
+            <p class="small-text">Els tabalers han d'assajar minim un cop al mes per estar en condicions de sortir.</p>
+        </div>
+    `;
+
+    tabalersContainer.innerHTML = state.tabalers
+        .map(
+            (member, index) => `
+                <article class="board-card">
+                    <h3>${member.nom}</h3>
+                    <div class="priority-bar">
+                        <span class="badge ${esAptePerSortida(member) ? "baixa" : "alta"}">
+                            ${esAptePerSortida(member) ? "apte" : "no apte"}
+                        </span>
+                        <span class="badge ${member.tipus === "infantil" ? "mitjana" : "oberta"}">${member.tipus}</span>
+                        <span class="badge">${member.instrument || 'tabal'}</span>
+                    </div>
+                    <p>${explicacioAptitud(member)}</p>
+                    <div class="meta-line">Edat: ${member.edat || "-"} · Assajos aquest mes: ${member.assajosMes}</div>
+                    <div class="actions-row">
+                        <button onclick="editarTabaler(${index})">Editar</button>
+                        <button onclick="sumarAssaig(${index})">+1 assaig</button>
+                        <button onclick="eliminarTabaler(${index})">Eliminar</button>
+                    </div>
+                </article>
+            `
+        )
+        .join("");
+};
+
+// Event listeners para nuevos formularios
+document.addEventListener('DOMContentLoaded', function() {
+    // Formulario simple RSVP
+    const formSimpleRSVP = document.getElementById("form-simple-rsvp");
+    if (formSimpleRSVP) {
+        formSimpleRSVP.onsubmit = function(event) {
+            event.preventDefault();
+            const nom = document.getElementById("rsvp-nom").value.trim();
+            
+            if (!nom || currentAssaigIndex === null) return;
+            
+            if (!state.assajos[currentAssaigIndex].assistencia) {
+                state.assajos[currentAssaigIndex].assistencia = {};
+            }
+            
+            state.assajos[currentAssaigIndex].assistencia[nom] = {
+                estat: 'confirmat',
+                timestamp: new Date().toISOString()
+            };
+            
+            document.getElementById("rsvp-nom").value = "";
+            renderAssistentsList();
+            renderCalendar();
+            renderAssajosList();
+            showToast(`${nom} afegit a la llista`, "success");
+        };
+    }
+
+    // Formulario de ritmo
+    const formRitmo = document.getElementById("form-ritmo");
+    if (formRitmo) {
+        formRitmo.onsubmit = function(event) {
+            event.preventDefault();
+            const index = document.getElementById("ritmo-index").value;
+            const ritmoData = {
+                nom: document.getElementById("ritmo-nom").value,
+                tipus: document.getElementById("ritmo-tipus").value,
+                fitxerAudio: document.getElementById("ritmo-audio").value,
+                descripcio: document.getElementById("ritmo-descripcio").value
+            };
+            
+            if (index === "") {
+                state.ritmos.push(ritmoData);
+            } else {
+                state.ritmos[index] = ritmoData;
+            }
+            
+            event.target.reset();
+            document.getElementById("ritmo-index").value = "";
+            toggleModal("modal-ritmo");
+            renderRitmos();
+            showToast("Ritme guardat correctament", "success");
+        };
+    }
+    
+    // Formulario de chat del ensayo
+    const formXatAssaig = document.getElementById("form-xat-assaig");
+    if (formXatAssaig) {
+        formXatAssaig.onsubmit = function(event) {
+            event.preventDefault();
+            const input = document.getElementById("xat-assaig-input");
+            const text = input.value.trim();
+            
+            if (!text || currentAssaigIndex === null) return;
+            
+            if (!state.assajos[currentAssaigIndex].xat) {
+                state.assajos[currentAssaigIndex].xat = [];
+            }
+            
+            state.assajos[currentAssaigIndex].xat.push({
+                autor: currentUser,
+                text: text,
+                timestamp: new Date().toISOString()
+            });
+            
+            input.value = "";
+            renderXatMessages();
+            renderAssajosList();
+        };
+    }
+});
 
 function openBestiaModal() {
     document.getElementById("modal-bestia-title").innerText = "Nou contacte bestiari";
@@ -2416,28 +2895,19 @@ function cambiarEstatTasca(index) {
     renderAll();
 }
 
+// Función deprecated - ya no se usa en la UI
 function sumarAssaig(index) {
-    state.tabalers[index].assajosMes += 1;
-    renderAll();
+    console.log("sumarAssaig: función deprecated");
 }
 
 function openTabalerModal() {
-    document.getElementById("modal-tabaler-title").innerText = "Nou tabaler";
-    document.getElementById("form-tabaler").reset();
-    document.getElementById("tb-index").value = "";
-    document.getElementById("tb-assajos").value = "0";
-    toggleModal("modal-tabaler");
+    // Función deprecated - ya no se usa en la UI
+    console.log("openTabalerModal: función deprecated");
 }
 
 function editarTabaler(index) {
-    const member = state.tabalers[index];
-    document.getElementById("modal-tabaler-title").innerText = "Editar tabaler";
-    document.getElementById("tb-index").value = index;
-    document.getElementById("tb-nom").value = member.nom;
-    document.getElementById("tb-tipo").value = member.tipus;
-    document.getElementById("tb-edat").value = member.edat || "";
-    document.getElementById("tb-assajos").value = member.assajosMes;
-    toggleModal("modal-tabaler");
+    // Función deprecated - ya no se usa en la UI
+    console.log("editarTabaler: función deprecated");
 }
 
 function eliminarTasca(index) {
@@ -3639,26 +4109,8 @@ document.getElementById("formulari-sortida-select").onchange = () => {
     document.getElementById("formulari-feedback").innerText = "";
 };
 
-document.getElementById("form-tabaler").onsubmit = (event) => {
-    event.preventDefault();
-    const index = document.getElementById("tb-index").value;
-    const tabalerData = {
-        nom: document.getElementById("tb-nom").value,
-        tipus: document.getElementById("tb-tipo").value,
-        edat: Number(document.getElementById("tb-edat").value || 0),
-        assajosMes: Number(document.getElementById("tb-assajos").value || 0)
-    };
-    if (index === "") {
-        state.tabalers.push(tabalerData);
-    } else {
-        state.tabalers[index] = tabalerData;
-    }
-    event.target.reset();
-    document.getElementById("tb-index").value = "";
-    document.getElementById("modal-tabaler-title").innerText = "Nou tabaler";
-    toggleModal("modal-tabaler");
-    renderAll();
-};
+// Event listener para form-tabaler - eliminado (ya no se usa en la UI)
+// document.getElementById("form-tabaler").onsubmit = (event) => { ... };
 
 document.getElementById("form-vestuari").onsubmit = (event) => {
     event.preventDefault();
@@ -4067,6 +4519,11 @@ try {
     updateAuthStatus();
     initializeNotificationButton();
     renderAll({ persist: false });
+    // Inicializar calendario de Tabals
+    if (document.getElementById('tabals-calendari')) {
+        renderCalendar();
+        renderAssajosList();
+    }
 } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
 }

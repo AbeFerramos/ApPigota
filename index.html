@@ -51,7 +51,7 @@
                         <strong id="metric-sortides">0</strong>
                     </div>
                     <div class="metric-card">
-                        <span>Tabalers aptes</span>
+                        <span>Assajos mes</span>
                         <strong id="metric-tabalers">0</strong>
                     </div>
                     <div class="metric-card">
@@ -467,26 +467,80 @@
 
         <section id="tab-tabals" class="tab-content">
             <div class="section-title">
-                <h2>Tabalers</h2>
-                <button class="btn-add" onclick="openTabalerModal()">+</button>
-            </div>
-            <div class="info-card compact">
-                <strong>Control d'assajos i recuent</strong>
-                <p>Registre de qui ha assajat aquest mes i recuent dels tabalers de la colla.</p>
+                <h2>Assajos Tabals</h2>
             </div>
 
-            <div class="tab-block">
-                <div class="section-title">
-                    <h3>Recuent mensual</h3>
+            <!-- Navegación interna de Tabals -->
+            <nav class="tabals-subnav">
+                <button type="button" onclick="showTabalsSubTab('tabals-calendari')" class="tabals-subnav-item active" id="btn-tabals-calendari">
+                    <i class="fas fa-calendar-alt"></i><span>Calendari</span>
+                </button>
+                <button type="button" onclick="showTabalsSubTab('tabals-ritmos')" class="tabals-subnav-item" id="btn-tabals-ritmos">
+                    <i class="fas fa-music"></i><span>Ritmos</span>
+                </button>
+            </nav>
+
+            <!-- Tab: Calendario de Ensayos -->
+            <div id="tabals-calendari" class="tabals-subcontent active">
+                <!-- Banner de cambios -->
+                <div id="assaig-cambio-banner" class="cambio-banner hidden">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="cambio-banner-text">Hi ha canvis en el proper assaig</span>
+                    <button type="button" onclick="hideCambioBanner()" class="btn-close">×</button>
                 </div>
-                <div id="recuent-tabalers"></div>
+
+                <!-- Configuración de recordatorios -->
+                <div class="info-card compact">
+                    <div class="reminder-toggle">
+                        <div>
+                            <strong>Recordatoris d'assajos</strong>
+                            <p class="small-text">Reb notificacions abans de cada assaig</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="reminder-toggle" onchange="toggleReminderSettings()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Calendario mensual -->
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <button type="button" onclick="changeMonth(-1)" class="btn-nav"><i class="fas fa-chevron-left"></i></button>
+                        <h3 id="calendar-month-year">Octubre 2026</h3>
+                        <button type="button" onclick="changeMonth(1)" class="btn-nav"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="calendar-grid">
+                        <div class="calendar-day-header">Dill</div>
+                        <div class="calendar-day-header">Dim</div>
+                        <div class="calendar-day-header">Dcr</div>
+                        <div class="calendar-day-header">Dij</div>
+                        <div class="calendar-day-header">Div</div>
+                        <div class="calendar-day-header">Dis</div>
+                        <div class="calendar-day-header">Diu</div>
+                    </div>
+                    <div id="calendar-days" class="calendar-days"></div>
+                </div>
+
+                <!-- Lista de ensayos del mes -->
+                <div class="tab-block">
+                    <div class="section-title">
+                        <h3>Assajos d'aquest mes</h3>
+                    </div>
+                    <div id="lista-assajos"></div>
+                </div>
             </div>
 
-            <div class="tab-block">
+            <!-- Tab: Ritmos y Partituras -->
+            <div id="tabals-ritmos" class="tabals-subcontent">
                 <div class="section-title">
-                    <h3>Tots els tabalers</h3>
+                    <h3>Ritmos i Partituras</h3>
+                    <button class="btn-add btn-add-small" onclick="openRitmoModal()">+</button>
                 </div>
-                <div id="lista-tabalers"></div>
+                <div class="info-card compact">
+                    <p>Reproductor d'àudio i esquemes dels ritmes de la colla.</p>
+                </div>
+                <div id="lista-ritmos"></div>
             </div>
         </section>
     </main>
@@ -577,20 +631,59 @@
         </div>
     </div>
 
-    <div id="modal-tabaler" class="modal">
+    <!-- Modal de RSVP (Confirmación de asistencia simple) -->
+    <div id="modal-rsvp" class="modal">
         <div class="modal-content">
-            <h3 id="modal-tabaler-title">Nou tabaler</h3>
-            <form id="form-tabaler">
-                <input type="hidden" id="tb-index">
-                <input type="text" id="tb-nom" placeholder="Nom" required>
-                <select id="tb-tipo">
-                    <option value="adult">Adult</option>
-                    <option value="infantil">Infantil</option>
+            <h3>Assistència a l'assaig</h3>
+            <div id="rassaig-info" class="rassaig-info"></div>
+
+            <!-- Formulario para añadir nombre -->
+            <form id="form-simple-rsvp">
+                <input type="text" id="rsvp-nom" placeholder="Escriu el teu nom" required>
+                <button type="submit" class="btn-primary full">Afegir-me a la llista</button>
+            </form>
+
+            <!-- Lista de asistentes -->
+            <div class="assistencia-list">
+                <h4>Qui vindrà:</h4>
+                <div id="rsvp-assistents-list"></div>
+            </div>
+
+            <button type="button" onclick="toggleModal('modal-rsvp')" class="btn-cancelar full">Tancar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Chat/Notas del Ensayo -->
+    <div id="modal-xat-assaig" class="modal">
+        <div class="modal-content modal-large">
+            <h3>Notes de l'assaig</h3>
+            <div id="xat-assaig-info" class="rassaig-info"></div>
+            <div id="xat-assaig-messages" class="xat-messages"></div>
+            <form id="form-xat-assaig">
+                <input type="text" id="xat-assaig-input" placeholder="Escriu un missatge..." required>
+                <button type="submit" class="btn-primary">Enviar</button>
+            </form>
+            <button type="button" onclick="toggleModal('modal-xat-assaig')" class="btn-cancelar full">Tancar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Ritmo -->
+    <div id="modal-ritmo" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-ritmo-title">Nou ritme</h3>
+            <form id="form-ritmo">
+                <input type="hidden" id="ritmo-index">
+                <input type="text" id="ritmo-nom" placeholder="Nom del ritme" required>
+                <select id="ritmo-tipus">
+                    <option value="marxa">Marxa</option>
+                    <option value="ball">Ball</option>
+                    <option value="toc">Toc</option>
+                    <option value="altre">Altre</option>
                 </select>
-                <input type="number" id="tb-edat" min="0" placeholder="Edat">
-                <input type="number" id="tb-assajos" min="0" placeholder="Assajos aquest mes" value="0">
+                <input type="url" id="ritmo-audio" placeholder="URL de l'àudio (MP3)">
+                <textarea id="ritmo-descripcio" placeholder="Descripció o notes"></textarea>
                 <button type="submit" class="btn-primary full">Guardar</button>
-                <button type="button" onclick="toggleModal('modal-tabaler')" class="btn-cancelar">Tancar</button>
+                <button type="button" onclick="toggleModal('modal-ritmo')" class="btn-cancelar">Tancar</button>
             </form>
         </div>
     </div>

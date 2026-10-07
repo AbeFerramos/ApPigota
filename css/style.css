@@ -1287,5 +1287,577 @@ textarea {
 /* Estilo para descuadre de stock */
 .stock-descuadre {
     color: #2563eb;
+}
+
+/* ===== TABALS SECTION ===== */
+
+/* Navegación interna de Tabals */
+.tabals-subnav {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.tabals-subnav-item {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.tabals-subnav-item:hover {
+    background: var(--surface-2);
+    border-color: var(--accent);
+}
+
+.tabals-subnav-item.active {
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--accent);
+}
+
+.tabals-subnav-item i {
+    font-size: 1rem;
+}
+
+.tabals-subcontent {
+    display: none;
+}
+
+.tabals-subcontent.active {
+    display: block;
+}
+
+/* Banner de cambios */
+.cambio-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+    border-radius: 12px;
+    margin: 16px 0;
+    animation: slideDown 0.3s ease;
+}
+
+.cambio-banner.hidden {
+    display: none;
+}
+
+.cambio-banner i {
+    color: #d97706;
+    font-size: 1.2rem;
+}
+
+.cambio-banner span {
+    flex: 1;
+    color: #92400e;
+    font-weight: 500;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    color: #92400e;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 8px;
+    line-height: 1;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Toggle de recordatorios */
+.reminder-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--line);
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--accent);
+}
+
+input:checked + .slider:before {
+    transform: translateX(24px);
+}
+
+/* Calendario */
+.calendar-container {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+    margin: 16px 0;
+}
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.calendar-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: var(--accent-dark);
+}
+
+.btn-nav {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--ink);
+}
+
+.btn-nav:hover {
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--accent);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    padding: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    position: relative;
+}
+
+.calendar-day:hover {
+    background: var(--line);
+}
+
+.calendar-day.viernes {
+    background: linear-gradient(135deg, rgba(194, 75, 43, 0.25) 0%, rgba(194, 75, 43, 0.18) 100%);
+    border: 2px solid rgba(194, 75, 43, 0.5);
+    font-weight: 600;
+}
+
+.calendar-day.assaig {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: var(--paper);
+    border-color: var(--accent);
+}
+
+.calendar-day.assaig .day-number {
+    font-weight: 700;
+}
+
+.calendar-day .assaig-count {
+    font-size: 0.7rem;
+    margin-top: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.calendar-day.today {
+    border: 2px solid var(--accent);
+    font-weight: 700;
+}
+
+.calendar-day.empty {
+    background: transparent;
+    cursor: default;
+}
+
+.calendar-day.empty:hover {
+    background: transparent;
+}
+
+/* Tarjeta de ensayo */
+.assaig-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 12px 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.assaig-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(194, 75, 43, 0.15);
+}
+
+.assaig-card.tiene-cambio {
+    border-left: 4px solid #f59e0b;
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.08) 0%, var(--surface) 100%);
+}
+
+.assaig-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.assaig-card-date {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-dark);
+}
+
+.assaig-card-time {
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.assaig-card-location {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    color: var(--ink);
+}
+
+.assaig-card-location i {
+    color: var(--accent);
+}
+
+.assaig-card-stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.assaig-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.assaig-stat strong {
+    color: var(--ink);
+}
+
+.assaig-assistents {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.assaig-assistents strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.assistents-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.assaig-card .badge-rsvp {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-rsvp.confirmat {
+    background: rgba(31, 138, 91, 0.15);
+    color: var(--success);
+}
+
+.badge-rsvp.duda {
+    background: rgba(184, 106, 0, 0.15);
+    color: var(--warning);
+}
+
+.badge-rsvp.no {
+    background: rgba(180, 35, 24, 0.15);
+    color: var(--danger);
+}
+
+/* Modal RSVP simple */
+.rassaig-info {
+    background: var(--surface-2);
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.rassaig-info strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--accent-dark);
+}
+
+.rassaig-info span {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.assistencia-list {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.assistencia-list h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.95rem;
+    color: var(--muted);
+}
+
+#rsvp-assistents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.assistent-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--line);
+}
+
+.assistent-name {
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.assistent-time {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.assistent-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.assistent-remove:hover {
+    background: rgba(180, 35, 24, 0.1);
+}
+
+/* Modal de Chat/Notas */
+.modal-large {
+    max-width: 600px;
+}
+
+.xat-messages {
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.xat-message {
+    background: var(--surface);
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.xat-message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.xat-message-author {
+    font-weight: 600;
+    color: var(--accent-dark);
+    font-size: 0.9rem;
+}
+
+.xat-message-time {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.xat-message-text {
+    color: var(--ink);
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+#form-xat-assaig {
+    display: flex;
+    gap: 8px;
+}
+
+#form-xat-assaig input {
+    flex: 1;
+}
+
+/* Ritmos */
+.ritmo-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 12px 0;
+}
+
+.ritmo-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.ritmo-card h3 {
+    margin: 0;
+    color: var(--accent-dark);
+}
+
+.ritmo-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: var(--surface-2);
+    color: var(--muted);
+}
+
+.ritmo-card p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 8px 0;
+}
+
+.ritmo-audio-player {
+    margin-top: 12px;
+}
+
+.ritmo-audio-player audio {
+    width: 100%;
+    border-radius: 8px;
+}
+
+.ritmo-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.ritmo-actions button {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+}
     font-weight: 600;
 }
