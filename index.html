@@ -476,7 +476,7 @@
                     <i class="fas fa-calendar-alt"></i><span>Calendari</span>
                 </button>
                 <button type="button" onclick="showTabalsSubTab('tabals-ritmos')" class="tabals-subnav-item" id="btn-tabals-ritmos">
-                    <i class="fas fa-music"></i><span>Ritmos</span>
+                    <i class="fas fa-music"></i><span>Ritmes</span>
                 </button>
             </nav>
 
@@ -534,7 +534,7 @@
             <!-- Tab: Ritmos y Partituras -->
             <div id="tabals-ritmos" class="tabals-subcontent">
                 <div class="section-title">
-                    <h3>Ritmos i Partituras</h3>
+                    <h3>Ritmes i Partitures</h3>
                     <button class="btn-add btn-add-small" onclick="openRitmoModal()">+</button>
                 </div>
                 <div class="info-card compact">
@@ -653,6 +653,19 @@
         </div>
     </div>
 
+    <!-- Modal de contraseña para eliminar ensayo -->
+    <div id="modal-delete-assaig" class="modal">
+        <div class="modal-content">
+            <h3>Eliminar assaig</h3>
+            <p class="small-text">Introdueix la contrasenya per eliminar aquest assaig.</p>
+            <form id="form-delete-assaig">
+                <input type="password" id="delete-assaig-password" placeholder="Contrasenya" required>
+                <button type="submit" class="btn-primary full">Eliminar</button>
+                <button type="button" onclick="toggleModal('modal-delete-assaig')" class="btn-cancelar">Cancel·lar</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal de Chat/Notas del Ensayo -->
     <div id="modal-xat-assaig" class="modal">
         <div class="modal-content modal-large">
@@ -682,7 +695,7 @@
                 </select>
                 <input type="url" id="ritmo-audio" placeholder="URL de l'àudio (MP3)">
                 <textarea id="ritmo-descripcio" placeholder="Descripció o notes"></textarea>
-                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="submit" class="btn-primary full">Desar</button>
                 <button type="button" onclick="toggleModal('modal-ritmo')" class="btn-cancelar">Tancar</button>
             </form>
         </div>

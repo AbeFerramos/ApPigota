@@ -934,9 +934,9 @@ function normalizeFormQuestions(value) {
     value.forEach((question) => {
         const cleanText = (question?.text || "").trim();
         if (!cleanText) return;
-        const id = question.id || createQuestionId(cleanText);
+        const id = question.id || question.pregunta_id || createQuestionId(cleanText);
         if (byId.has(id)) {
-            byId.set(id, { ...byId.get(id), ...question, id, text: cleanText });
+            byId.set(id, { ...byId.get(id), ...question, id, pregunta_id: id, text: cleanText });
             return;
         }
         const duplicate = Array.from(byId.values()).some(
@@ -945,6 +945,7 @@ function normalizeFormQuestions(value) {
         if (!duplicate) {
             byId.set(id, {
                 id,
+                pregunta_id: question.pregunta_id || id,
                 text: cleanText,
                 tipus: question.tipus || "text",
                 requerida: Boolean(question.requerida),
@@ -2306,6 +2307,7 @@ function showTabalsSubTab(tabId) {
 
 // Calendario
 function renderCalendar() {
+    syncReminderToggleUI();
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth();
 
@@ -2423,18 +2425,21 @@ function renderAssajosList() {
             : '<span class="small-text">Encara no hi ha ningú confirmat</span>';
 
         return `
-            <article class="assaig-card ${tieneCambio ? 'tiene-cambio' : ''}" onclick="openSimpleRSVPModal(${realIndex})">
+            <article class="assaig-card ${tieneCambio ? 'tiene-cambio' : ''}">
                 <div class="assaig-card-header">
-                    <div>
+                    <div onclick="openSimpleRSVPModal(${realIndex})" style="cursor: pointer; flex: 1;">
                         <div class="assaig-card-date">${formattedDate}</div>
                         <div class="assaig-card-time">${assaig.hora || '20:00'}</div>
                     </div>
+                    <button type="button" onclick="openDeleteAssaigModal(${realIndex})" class="btn-delete-assaig" title="Eliminar assaig">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
-                <div class="assaig-card-location">
+                <div class="assaig-card-location" onclick="openSimpleRSVPModal(${realIndex})" style="cursor: pointer;">
                     <i class="fas fa-map-marker-alt"></i>
                     <span>${assaig.lloc}</span>
                 </div>
-                <div class="assaig-assistents">
+                <div class="assaig-assistents" onclick="openSimpleRSVPModal(${realIndex})" style="cursor: pointer;">
                     <strong>Qui vindrà:</strong>
                     <div class="assistents-badges">${assistentsList}</div>
                 </div>
@@ -2505,6 +2510,32 @@ function removeAssistent(nom) {
     renderAssajosList();
 }
 
+// Modal de eliminación de ensayo con contraseña
+function openDeleteAssaigModal(index) {
+    currentAssaigIndex = index;
+    document.getElementById('form-delete-assaig').reset();
+    toggleModal('modal-delete-assaig');
+}
+
+function confirmDeleteAssaig(password) {
+    // Contraseña por defecto (en producción debería estar en configuración)
+    const CORRECT_PASSWORD = 'tabals2026';
+
+    if (password !== CORRECT_PASSWORD) {
+        showToast('Contrasenya incorrecta', 'error');
+        return false;
+    }
+
+    if (currentAssaigIndex === null) return false;
+
+    state.assajos.splice(currentAssaigIndex, 1);
+    toggleModal('modal-delete-assaig');
+    renderCalendar();
+    renderAssajosList();
+    showToast('Assaig eliminat correctament', 'success');
+    return true;
+}
+
 // Chat/Notas del ensayo
 function openXatAssaig(index) {
     currentAssaigIndex = index;
@@ -2549,12 +2580,12 @@ function renderXatMessages() {
 function renderRitmos() {
     const container = document.getElementById('lista-ritmos');
     if (!container) return;
-    
+
     if (state.ritmos.length === 0) {
         container.innerHTML = '<p class="small-text">No hi ha ritmes carregats.</p>';
         return;
     }
-    
+
     container.innerHTML = state.ritmos.map((ritmo, index) => `
         <article class="ritmo-card">
             <div class="ritmo-card-header">
@@ -2608,15 +2639,91 @@ function hideCambioBanner() {
     document.getElementById('assaig-cambio-banner').classList.add('hidden');
 }
 
-// Toggle de recordatorios
-function toggleReminderSettings() {
-    const enabled = document.getElementById('reminder-toggle').checked;
-    // Aquí se implementaría la lógica de notificaciones
-    if (enabled) {
-        showToast('Recordatoris activats', 'success');
+const REMINDERS_ENABLED_KEY = "lapigota_reminders_enabled";
+const NOTIFIED_ASSAJOS_KEY = "lapigota_notified_assajos";
+
+function syncReminderToggleUI() {
+    const toggle = document.getElementById("reminder-toggle");
+    if (!toggle) return;
+    const isEnabled = localStorage.getItem(REMINDERS_ENABLED_KEY) === "true";
+    if ("Notification" in window && Notification.permission === "granted" && isEnabled) {
+        toggle.checked = true;
+    } else if ("Notification" in window && Notification.permission === "denied") {
+        toggle.checked = false;
+        localStorage.setItem(REMINDERS_ENABLED_KEY, "false");
     } else {
-        showToast('Recordatoris desactivats', 'success');
+        toggle.checked = isEnabled;
     }
+}
+
+async function toggleReminderSettings() {
+    const toggle = document.getElementById("reminder-toggle");
+    if (!toggle) return;
+    const enabled = toggle.checked;
+
+    if (enabled) {
+        const hasPermission = await requestNotificationPermission();
+        if (!hasPermission) {
+            toggle.checked = false;
+            localStorage.setItem(REMINDERS_ENABLED_KEY, "false");
+            showToast("Permís de notificacions no concedit.", "warning");
+            return;
+        }
+        localStorage.setItem(REMINDERS_ENABLED_KEY, "true");
+        showToast("Recordatoris d'assajos activats 🥁", "success");
+        checkAssaigReminders();
+    } else {
+        localStorage.setItem(REMINDERS_ENABLED_KEY, "false");
+        showToast("Recordatoris d'assajos desactivats", "info");
+    }
+}
+
+function getNotifiedAssajos() {
+    try {
+        return JSON.parse(localStorage.getItem(NOTIFIED_ASSAJOS_KEY) || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function addNotifiedAssaig(id) {
+    const list = getNotifiedAssajos();
+    if (!list.includes(id)) {
+        list.push(id);
+        localStorage.setItem(NOTIFIED_ASSAJOS_KEY, JSON.stringify(list));
+    }
+}
+
+function checkAssaigReminders() {
+    const isEnabled = localStorage.getItem(REMINDERS_ENABLED_KEY) === "true";
+    if (!isEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
+    if (!state.assajos || !Array.isArray(state.assajos)) return;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+
+    const notifiedList = getNotifiedAssajos();
+
+    state.assajos.forEach((assaig) => {
+        if (!assaig || !assaig.data || assaig.canvis?.cancelat) return;
+        const assaigId = `${assaig.data}_${assaig.hora || "20:00"}_${assaig.lloc || "local"}`;
+
+        if (notifiedList.includes(assaigId)) return;
+
+        if (assaig.data === todayStr) {
+            const bodyText = `Avui hi ha assaig a les ${assaig.hora || "20:00"}${assaig.lloc ? " a " + assaig.lloc : ""}.`;
+            sendLocalNotification("Recordatori d'assaig! 🥁", bodyText, { tag: `assaig-${assaigId}` });
+            addNotifiedAssaig(assaigId);
+        } else if (assaig.data === tomorrowStr) {
+            const bodyText = `Demà hi ha assaig a les ${assaig.hora || "20:00"}${assaig.lloc ? " a " + assaig.lloc : ""}.`;
+            sendLocalNotification("Recordatori d'assaig! 🥁", bodyText, { tag: `assaig-${assaigId}` });
+            addNotifiedAssaig(assaigId);
+        }
+    });
 }
 
 // RenderTabals simplificado (se mantiene para compatibilidad pero no se usa en la UI)
@@ -2681,23 +2788,33 @@ document.addEventListener('DOMContentLoaded', function() {
         formSimpleRSVP.onsubmit = function(event) {
             event.preventDefault();
             const nom = document.getElementById("rsvp-nom").value.trim();
-            
+
             if (!nom || currentAssaigIndex === null) return;
-            
+
             if (!state.assajos[currentAssaigIndex].assistencia) {
                 state.assajos[currentAssaigIndex].assistencia = {};
             }
-            
+
             state.assajos[currentAssaigIndex].assistencia[nom] = {
                 estat: 'confirmat',
                 timestamp: new Date().toISOString()
             };
-            
+
             document.getElementById("rsvp-nom").value = "";
             renderAssistentsList();
             renderCalendar();
             renderAssajosList();
             showToast(`${nom} afegit a la llista`, "success");
+        };
+    }
+
+    // Formulario de eliminación de ensayo
+    const formDeleteAssaig = document.getElementById("form-delete-assaig");
+    if (formDeleteAssaig) {
+        formDeleteAssaig.onsubmit = function(event) {
+            event.preventDefault();
+            const password = document.getElementById("delete-assaig-password").value;
+            confirmDeleteAssaig(password);
         };
     }
 
@@ -2713,18 +2830,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 fitxerAudio: document.getElementById("ritmo-audio").value,
                 descripcio: document.getElementById("ritmo-descripcio").value
             };
-            
+
             if (index === "") {
                 state.ritmos.push(ritmoData);
             } else {
                 state.ritmos[index] = ritmoData;
             }
-            
+
             event.target.reset();
             document.getElementById("ritmo-index").value = "";
             toggleModal("modal-ritmo");
             renderRitmos();
-            showToast("Ritme guardat correctament", "success");
+            showToast("Ritme desat correctament", "success");
         };
     }
     
@@ -3394,11 +3511,7 @@ function actualitzarPreguntaFormulari(questionId, text) {
     }
     question.text = cleanText;
     renderAll();
-    
-    // Sincronizar con PocketBase
-    if (PB_CONFIG.enabled) {
-        syncQuestionUpdateToPocketBase(question);
-    }
+    queueRemoteSave(); // Sincronizar con Firebase
 }
 
 async function syncQuestionUpdateToPocketBase(question) {
@@ -3465,9 +3578,7 @@ function eliminarPreguntaFormulari(questionId) {
     const question = state.formulariPreguntes.find((item) => item.pregunta_id === questionId || item.id === questionId);
     if (!question || question.fixa) return;
     if (!confirmDelete(question.text)) return;
-    
-    const questionToDelete = { ...question }; // Guardar referencia para sincronización
-    
+
     state.formulariPreguntes = state.formulariPreguntes.filter((item) => item.pregunta_id !== questionId && item.id !== questionId);
     state.sortides.forEach((sortida) => {
         sortida.assistencia.forEach((item) => {
@@ -3477,11 +3588,7 @@ function eliminarPreguntaFormulari(questionId) {
         });
     });
     renderAll();
-    
-    // Sincronizar eliminación con PocketBase
-    if (PB_CONFIG.enabled) {
-        syncQuestionDeleteToPocketBase(questionToDelete);
-    }
+    queueRemoteSave(); // Sincronizar con Firebase
 }
 
 async function syncQuestionDeleteToPocketBase(question) {
@@ -3555,8 +3662,10 @@ function addQuestionToForm(text, tipus) {
         return false;
     }
     
+    const qId = createQuestionId(cleanText);
     const newQuestion = {
-        pregunta_id: createQuestionId(cleanText), // Usar pregunta_id para PocketBase
+        id: qId,
+        pregunta_id: qId, // Usar pregunta_id para PocketBase / compatibilidad
         text: cleanText,
         tipus: tipus || "text",
         requerida: false,
@@ -4173,6 +4282,7 @@ document.getElementById("form-config-formulari").onsubmit = (event) => {
         input.value = "";
         typeSelect.value = "text";
         renderAll();
+        queueRemoteSave(); // Sincronizar con Firebase
         showToast("Pregunta afegida al formulari.", "success");
     }
 };
@@ -4519,11 +4629,15 @@ try {
     updateAuthStatus();
     initializeNotificationButton();
     renderAll({ persist: false });
-    // Inicializar calendario de Tabals
+    // Inicializar calendario de Tabals y recordatorios de ensayos
     if (document.getElementById('tabals-calendari')) {
         renderCalendar();
         renderAssajosList();
     }
+    syncReminderToggleUI();
+    checkAssaigReminders();
+    // Comprobar recordatorios cada 30 minutos mientras la aplicación está abierta
+    setInterval(checkAssaigReminders, 1800000);
 } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
 }

@@ -1650,6 +1650,24 @@ input:checked + .slider:before {
     gap: 6px;
 }
 
+.btn-delete-assaig {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.btn-delete-assaig:hover {
+    background: rgba(180, 35, 24, 0.1);
+}
+
+.btn-delete-assaig i {
+    font-size: 1rem;
+}
+
 .assaig-card .badge-rsvp {
     display: inline-block;
     padding: 4px 10px;
