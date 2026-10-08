@@ -106,9 +106,10 @@ async function persistStateToFirebase() {
 }
 
 function applyRemoteState(parsedData) {
-    state = parsedData;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!parsedData || typeof parsedData !== "object") return;
+    state = { ...structuredClone(defaultData), ...parsedData };
     normalizeState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     renderAll({ persist: false });
 }
 
@@ -974,6 +975,16 @@ function createQuestionId(text) {
 }
 
 function normalizeState() {
+    if (!state || typeof state !== "object") {
+        state = structuredClone(defaultData);
+    }
+    state.assajos = Array.isArray(state.assajos) ? state.assajos : (defaultData.assajos || []);
+    state.tabalers = Array.isArray(state.tabalers) ? state.tabalers : (defaultData.tabalers || []);
+    state.ritmos = Array.isArray(state.ritmos) && state.ritmos.length > 0 ? state.ritmos : (defaultData.ritmos || []);
+    state.junta = Array.isArray(state.junta) && state.junta.length > 0 ? state.junta : (defaultData.junta || []);
+    state.eixos = Array.isArray(state.eixos) && state.eixos.length > 0 ? state.eixos : (defaultData.eixos || []);
+    state.comunicadores = Array.isArray(state.comunicadores) ? state.comunicadores : (defaultData.comunicadores || []);
+
     state.membresColla = Array.from(new Set([
         ...(defaultData.membresColla || []),
         ...(state.membresColla || [])
@@ -981,8 +992,10 @@ function normalizeState() {
     state.formulariPreguntes = normalizeFormQuestions(state.formulariPreguntes);
     if (Array.isArray(state.agendaBase)) {
         state.agendaBase = state.agendaBase.join("\n\n");
+    } else if (typeof state.agendaBase !== "string") {
+        state.agendaBase = defaultData.agendaBase || "";
     }
-    state.sortides = (state.sortides || []).map((sortida) => ({
+    state.sortides = (Array.isArray(state.sortides) ? state.sortides : (defaultData.sortides || [])).map((sortida) => ({
         ...sortida,
         piroUsada: {
             carretilles: Number(sortida?.piroUsada?.carretilles || sortida?.piroReserva?.carretilles || 0),
@@ -1009,12 +1022,12 @@ function normalizeState() {
             extra: item.extra || item.respostesExtra || {}
         }))
     }));
-    state.reunions = (state.reunions || []).map((meeting) => ({
+    state.reunions = (Array.isArray(state.reunions) ? state.reunions : (defaultData.reunions || [])).map((meeting) => ({
         ...meeting,
         acta: meeting?.acta || "",
         arxivada: Boolean(meeting?.arxivada)
     }));
-    state.documents = (state.documents || []).map((doc) => ({
+    state.documents = (Array.isArray(state.documents) ? state.documents : (defaultData.documents || [])).map((doc) => ({
         ...doc,
         id: doc?.id || Date.now() + Math.random(),
         nomArxiu: doc?.nomArxiu || null,
@@ -1022,7 +1035,15 @@ function normalizeState() {
         contingutArxiu: doc?.contingutArxiu || null,
         arxivada: Boolean(doc?.arxivada)
     }));
-    state.bestiari = (state.bestiari || []).map((bestia) => ({
+    state.tasques = (Array.isArray(state.tasques) ? state.tasques : (defaultData.tasques || [])).map((tasca) => ({
+        ...tasca,
+        titol: tasca.titol || "",
+        responsable: tasca.responsable || "Junta",
+        prioritat: tasca.prioritat || "mitjana",
+        detall: tasca.detall || "",
+        estat: tasca.estat || "oberta"
+    }));
+    state.bestiari = (Array.isArray(state.bestiari) && state.bestiari.length > 0 ? state.bestiari : (defaultData.bestiari || [])).map((bestia) => ({
         nom: bestia.nom || "",
         poblacio: bestia.poblacio || bestia.estat || "",
         feina: bestia.feina || bestia.detalls || "",
@@ -1030,42 +1051,10 @@ function normalizeState() {
         contacteTelefon: bestia.contacteTelefon || ""
     }));
     
-    state.reservesRoba = (state.reservesRoba || []).map((reserva) => ({
-        sortidaId: reserva.sortidaId || "",
-        nom: reserva.nom || "",
-        daltTalla: reserva.daltTalla || "",
-        daltEstat: reserva.daltEstat || "guardarropa",
-        baixTalla: reserva.baixTalla || "",
-        baixEstat: reserva.baixEstat || "guardarropa"
-    }));
-    
-    // Inicializar reservesRoba si no existe
-    if (!state.reservesRoba) {
-        state.reservesRoba = [];
-    }
-    
-    // Inicializar vestuariAssignacions si no existe
-    if (!state.vestuariAssignacions) {
-        state.vestuariAssignacions = [];
-    }
-    
-    // Forzar actualización de bestiari con los nuevos datos
-    // Si no hay datos por defecto o está vacío, mantener lo que hay
-    if (defaultData.bestiari && defaultData.bestiari.length > 0) {
-        state.bestiari = defaultData.bestiari;
-    }
-    
-    // Forzar actualización del stock de vestuario con los nuevos datos
-    if (defaultData.vestuariStock) {
-        state.vestuariStock = defaultData.vestuariStock;
-    }
-    
-    // Forzar actualización de las asignaciones de vestuario con los nuevos datos
-    if (defaultData.vestuariAssignacions && defaultData.vestuariAssignacions.length > 0) {
-        state.vestuariAssignacions = defaultData.vestuariAssignacions;
-    }
-    
-    state.recorridosMapa = state.recorridosMapa || defaultData.recorridosMapa;
+    state.reservesRoba = Array.isArray(state.reservesRoba) ? state.reservesRoba : [];
+    state.vestuariAssignacions = Array.isArray(state.vestuariAssignacions) && state.vestuariAssignacions.length > 0 ? state.vestuariAssignacions : (defaultData.vestuariAssignacions || []);
+    state.vestuariStock = state.vestuariStock || defaultData.vestuariStock;
+    state.recorridosMapa = state.recorridosMapa || defaultData.recorridosMapa || {};
 }
 
 function cloneValue(value) {
