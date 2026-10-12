@@ -1,0 +1,417 @@
+{
+  "collections": [
+    {
+      "name": "junta",
+      "type": "base",
+      "schema": [
+        {
+          "name": "nom",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "carrec",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "color",
+          "type": "text",
+          "default": "accent"
+        },
+        {
+          "name": "funcions",
+          "type": "array",
+          "items": {
+            "type": "text"
+          }
+        }
+      ]
+    },
+    {
+      "name": "membres_colla",
+      "type": "base",
+      "schema": [
+        {
+          "name": "nom",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "actiu",
+          "type": "bool",
+          "default": true
+        }
+      ]
+    },
+    {
+      "name": "sortides",
+      "type": "base",
+      "schema": [
+        {
+          "name": "nom",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "lloc",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "data",
+          "type": "date",
+          "required": true
+        },
+        {
+          "name": "estat",
+          "type": "text",
+          "default": "pendent"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "piroUsada",
+          "type": "json",
+          "default": {
+            "carretilles": 0,
+            "infantils": 0,
+            "brolladors": 0,
+            "efectes": 0
+          }
+        },
+        {
+          "name": "assistencia",
+          "type": "array",
+          "items": {
+            "type": "json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "bestiari",
+      "type": "base",
+      "schema": [
+        {
+          "name": "nom",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "poblacio",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "feina",
+          "type": "text",
+          "default": "Bestia"
+        },
+        {
+          "name": "contacteNom",
+          "type": "text"
+        },
+        {
+          "name": "contacteTelefon",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "reunions",
+      "type": "base",
+      "schema": [
+        {
+          "name": "data",
+          "type": "date",
+          "required": true
+        },
+        {
+          "name": "titol",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "acords",
+          "type": "text"
+        },
+        {
+          "name": "acta",
+          "type": "text"
+        },
+        {
+          "name": "arxivada",
+          "type": "bool",
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "documents",
+      "type": "base",
+      "schema": [
+        {
+          "name": "titol",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "categoria",
+          "type": "text"
+        },
+        {
+          "name": "data",
+          "type": "date"
+        },
+        {
+          "name": "descripcio",
+          "type": "text"
+        },
+        {
+          "name": "arxivada",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "name": "nomArxiu",
+          "type": "text"
+        },
+        {
+          "name": "tipusArxiu",
+          "type": "text"
+        },
+        {
+          "name": "contingutArxiu",
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "name": "tasques",
+      "type": "base",
+      "schema": [
+        {
+          "name": "titol",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "responsable",
+          "type": "text"
+        },
+        {
+          "name": "prioritat",
+          "type": "select",
+          "options": ["alta", "mitjana", "baixa"],
+          "default": "mitjana"
+        },
+        {
+          "name": "detall",
+          "type": "text"
+        },
+        {
+          "name": "estat",
+          "type": "select",
+          "options": ["oberta", "en_proces", "completada"],
+          "default": "oberta"
+        }
+      ]
+    },
+    {
+      "name": "piro_stock",
+      "type": "base",
+      "schema": [
+        {
+          "name": "carretilles",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "infantils",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "brolladors",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "efectes",
+          "type": "number",
+          "default": 0
+        }
+      ]
+    },
+    {
+      "name": "vestuari_stock",
+      "type": "base",
+      "schema": [
+        {
+          "name": "dalt",
+          "type": "json",
+          "default": {}
+        },
+        {
+          "name": "baix",
+          "type": "json",
+          "default": {}
+        }
+      ]
+    },
+    {
+      "name": "vestuari_assignacions",
+      "type": "base",
+      "schema": [
+        {
+          "name": "nom",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "daltTalla",
+          "type": "text"
+        },
+        {
+          "name": "daltEstat",
+          "type": "text"
+        },
+        {
+          "name": "baixTalla",
+          "type": "text"
+        },
+        {
+          "name": "baixEstat",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "formulari_preguntes",
+      "type": "base",
+      "schema": [
+        {
+          "name": "id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "tipus",
+          "type": "select",
+          "options": ["nom", "assistencia", "numero", "text", "llarg"],
+          "required": true
+        },
+        {
+          "name": "requerida",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "name": "fixa",
+          "type": "bool",
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "respostes_form",
+      "type": "base",
+      "schema": [
+        {
+          "name": "sortidaId",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "nomParticipant",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "respostes",
+          "type": "json",
+          "required": true
+        },
+        {
+          "name": "dataResposta",
+          "type": "date",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "configuracio",
+      "type": "base",
+      "schema": [
+        {
+          "name": "key",
+          "type": "text",
+          "required": true,
+          "unique": true
+        },
+        {
+          "name": "value",
+          "type": "json",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "recorridos_mapa",
+      "type": "base",
+      "schema": [
+        {
+          "name": "sortidaId",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "coordenades",
+          "type": "json",
+          "required": true
+        },
+        {
+          "name": "nom",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "reserves_roba",
+      "type": "base",
+      "schema": [
+        {
+          "name": "nom",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "tipus",
+          "type": "text"
+        },
+        {
+          "name": "talla",
+          "type": "text"
+        },
+        {
+          "name": "dataReserva",
+          "type": "date"
+        },
+        {
+          "name": "estat",
+          "type": "select",
+          "options": ["pendent", "assignat", "retornat"],
+          "default": "pendent"
+        }
+      ]
+    }
+  ]
+}

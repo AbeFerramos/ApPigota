@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Notificacions</title>
+    <style>
+        body {
+            font-family: Georgia, "Times New Roman", serif;
+            background-color: #f8f2ea;
+            color: #1f2430;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background-color: #c24b2b;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #7f2612;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f4ede4;
+            border-left: 4px solid #c24b2b;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Sistema de Notificacions</h1>
+    
+    <div class="status" id="status">
+        Estat: No inicialitzat
+    </div>
+    
+    <button onclick="checkNotificationSupport()">Comprovar suport</button>
+    <button onclick="requestPermission()">Sol·licitar permís</button>
+    <button onclick="sendTestNotification()">Enviar notificació de prova</button>
+    <button onclick="sendSortidaTest()">Simular nova sortida</button>
+    
+    <script>
+        function updateStatus(message) {
+            document.getElementById('status').innerText = 'Estat: ' + message;
+        }
+        
+        function checkNotificationSupport() {
+            if ('Notification' in window) {
+                updateStatus('Notificacions suportades. Permís actual: ' + Notification.permission);
+            } else {
+                updateStatus('Notificacions NO suportades en aquest navegador');
+            }
+        }
+        
+        async function requestPermission() {
+            if (!('Notification' in window)) {
+                updateStatus('Notificacions no suportades');
+                return;
+            }
+            
+            if (Notification.permission === 'granted') {
+                updateStatus('Permís ja concedit');
+                return;
+            }
+            
+            if (Notification.permission !== 'denied') {
+                const permission = await Notification.requestPermission();
+                updateStatus('Permís sol·licitat: ' + permission);
+            } else {
+                updateStatus('Permís denegat prèviament');
+            }
+        }
+        
+        function sendTestNotification() {
+            if (Notification.permission === 'granted') {
+                const notification = new Notification('Test de Notificació', {
+                    body: 'Aquesta és una notificació de prova del sistema La Pigota',
+                    icon: 'https://cdn-icons-png.flaticon.com/512/426/426833.png',
+                    badge: 'https://cdn-icons-png.flaticon.com/512/426/426833.png',
+                    vibrate: [200, 100, 200]
+                });
+                
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+                
+                updateStatus('Notificació enviada!');
+            } else {
+                updateStatus('Permís no concedit. Sol·licita\'l primer.');
+            }
+        }
+        
+        function sendSortidaTest() {
+            if (Notification.permission === 'granted') {
+                const sortidaTest = {
+                    nom: 'Correfoc de Test',
+                    data: '2026-09-15',
+                    lloc: 'Població de Test'
+                };
+                
+                const notification = new Notification('Nova sortida afegida! 🎉', {
+                    body: `${sortidaTest.nom} - ${sortidaTest.data} a ${sortidaTest.lloc}`,
+                    icon: 'https://cdn-icons-png.flaticon.com/512/426/426833.png',
+                    badge: 'https://cdn-icons-png.flaticon.com/512/426/426833.png',
+                    vibrate: [200, 100, 200],
+                    tag: `sortida-${sortidaTest.nom}`,
+                    requireInteraction: true,
+                    actions: [
+                        {
+                            action: 'view',
+                            title: 'Veure detalls'
+                        },
+                        {
+                            action: 'close',
+                            title: 'Tancar'
+                        }
+                    ]
+                });
+                
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+                
+                updateStatus('Notificació de sortida enviada!');
+            } else {
+                updateStatus('Permís no concedit. Sol·licita\'l primer.');
+            }
+        }
+        
+        // Inicialitzar
+        checkNotificationSupport();
+    </script>
+</body>
+</html>
