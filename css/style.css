@@ -1489,11 +1489,14 @@ input:checked + .slider:before {
 
 .calendar-day-header {
     text-align: center;
-    padding: 8px;
+    padding: 8px 4px;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--muted);
     text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .calendar-days {
@@ -1526,9 +1529,10 @@ input:checked + .slider:before {
     }
 
     .calendar-day-header {
-        font-size: 0.7rem;
-        padding: 4px 2px;
+        font-size: 0.65rem;
+        padding: 6px 2px;
         text-transform: none;
+        letter-spacing: -0.5px;
     }
 
     .calendar-container {
