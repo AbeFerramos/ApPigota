@@ -1526,8 +1526,9 @@ input:checked + .slider:before {
     }
 
     .calendar-day-header {
-        font-size: 0.75rem;
-        padding: 4px;
+        font-size: 0.7rem;
+        padding: 4px 2px;
+        text-transform: none;
     }
 
     .calendar-container {
