@@ -590,7 +590,7 @@ const defaultData = {
         "Xana Laviana"
     ],
     formulariPreguntes: [
-        { id: "nom", text: "Nom i cognom", tipus: "nom", requerida: true, fixa: true },
+        { id: "nom", text: "Nom i cognom", tipus: "nom", requerida: true },
         { id: "resposta", text: "Vindras a aquesta sortida?", tipus: "assistencia", requerida: true },
         { id: "nens", text: "Quants nens vindran amb tu?", tipus: "numero" },
         { id: "menjar", text: "Tema menjar o observacions d'al.lergies", tipus: "text" },
@@ -961,7 +961,6 @@ function normalizeFormQuestions(value) {
     }
 
     const byId = new Map();
-    baseQuestions.forEach((question) => byId.set(question.id, { ...question }));
     value.forEach((question) => {
         const cleanText = (question?.text || "").trim();
         if (!cleanText) return;
@@ -1943,7 +1942,7 @@ function renderPreguntesConfig() {
             <article class="question-config-row">
                 <input type="text" value="${escapeAttr(question.text)}" onchange="actualitzarPreguntaFormulari('${question.id}', this.value)">
                 <span class="badge oberta">${question.tipus}</span>
-                <button type="button" onclick="eliminarPreguntaFormulari('${question.id}')" ${question.fixa ? "disabled" : ""}>Eliminar</button>
+                <button type="button" onclick="eliminarPreguntaFormulari('${question.id}')">Eliminar</button>
             </article>
         `)
         .join("");
@@ -2403,7 +2402,7 @@ function handleCalendarClick(year, month, day) {
         // Si no existe, crear un ensayo básico para el viernes
         assaigDelDia = {
             data: dateString,
-            hora: '20:00',
+            hora: '18:00',
             lloc: 'Lloc habitual',
             notes: '',
             assistencia: {},
@@ -2452,7 +2451,7 @@ function renderAssajosList() {
                 <div class="assaig-card-header">
                     <div onclick="openSimpleRSVPModal(${realIndex})" style="cursor: pointer; flex: 1;">
                         <div class="assaig-card-date">${formattedDate}</div>
-                        <div class="assaig-card-time">${assaig.hora || '20:00'}</div>
+                        <div class="assaig-card-time">${assaig.hora || '18:00'}</div>
                     </div>
                     <button type="button" onclick="openDeleteAssaigModal(${realIndex})" class="btn-delete-assaig" title="Eliminar assaig">
                         <i class="fas fa-trash"></i>
@@ -2492,9 +2491,10 @@ function openSimpleRSVPModal(index) {
 
     document.getElementById('rassaig-info').innerHTML = `
         <strong>${formattedDate}</strong>
-        <span>${assaig.hora || '20:00'} · ${assaig.lloc}</span>
+        <span>${assaig.hora || '18:00'} · ${assaig.lloc}</span>
     `;
 
+    document.getElementById('rsvp-hora').value = assaig.hora || '18:00';
     document.getElementById('form-simple-rsvp').reset();
     renderAssistentsList();
     toggleModal('modal-rsvp');
@@ -2527,10 +2527,13 @@ function renderAssistentsList() {
 
 function removeAssistent(nom) {
     if (currentAssaigIndex === null) return;
+    if (!confirm(`Segur que vols eliminar a ${nom} de la llista?`)) return;
     delete state.assajos[currentAssaigIndex].assistencia[nom];
     renderAssistentsList();
     renderCalendar();
     renderAssajosList();
+    queueRemoteSave();
+    showToast(`${nom} eliminat de la llista`, "success");
 }
 
 // Modal de eliminación de ensayo con contraseña
@@ -2555,6 +2558,7 @@ function confirmDeleteAssaig(password) {
     toggleModal('modal-delete-assaig');
     renderCalendar();
     renderAssajosList();
+    queueRemoteSave();
     showToast('Assaig eliminat correctament', 'success');
     return true;
 }
@@ -2655,6 +2659,7 @@ function eliminarRitmo(index) {
     if (!ritmo || !confirmDelete(ritmo.nom)) return;
     state.ritmos.splice(index, 1);
     renderRitmos();
+    queueRemoteSave();
 }
 
 // Banner de cambios
@@ -2827,7 +2832,29 @@ document.addEventListener('DOMContentLoaded', function() {
             renderAssistentsList();
             renderCalendar();
             renderAssajosList();
+            queueRemoteSave();
             showToast(`${nom} afegit a la llista`, "success");
+        };
+    }
+
+    // Formulario de edición de hora
+    const formEditHora = document.getElementById("form-edit-hora");
+    if (formEditHora) {
+        formEditHora.onsubmit = function(event) {
+            event.preventDefault();
+            const hora = document.getElementById("rsvp-hora").value;
+
+            if (!hora || currentAssaigIndex === null) return;
+
+            state.assajos[currentAssaigIndex].hora = hora;
+            document.getElementById('rassaig-info').innerHTML = `
+                <strong>${new Date(state.assajos[currentAssaigIndex].data).toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</strong>
+                <span>${hora} · ${state.assajos[currentAssaigIndex].lloc}</span>
+            `;
+            renderCalendar();
+            renderAssajosList();
+            queueRemoteSave();
+            showToast("Hora actualitzada", "success");
         };
     }
 
@@ -2864,6 +2891,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById("ritmo-index").value = "";
             toggleModal("modal-ritmo");
             renderRitmos();
+            queueRemoteSave();
             showToast("Ritme desat correctament", "success");
         };
     }
@@ -3599,7 +3627,7 @@ async function syncQuestionUpdateToPocketBase(question) {
 
 function eliminarPreguntaFormulari(questionId) {
     const question = state.formulariPreguntes.find((item) => item.pregunta_id === questionId || item.id === questionId);
-    if (!question || question.fixa) return;
+    if (!question) return;
     if (!confirmDelete(question.text)) return;
 
     state.formulariPreguntes = state.formulariPreguntes.filter((item) => item.pregunta_id !== questionId && item.id !== questionId);
