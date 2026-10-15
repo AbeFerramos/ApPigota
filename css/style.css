@@ -1533,28 +1533,29 @@ input:checked + .slider:before {
 
 @media (max-width: 768px) {
     .calendar-day {
-        min-height: 35px;
-        font-size: 0.8rem;
+        min-height: 38px;
+        font-size: 0.85rem;
         padding: 2px;
     }
 
     .calendar-day-header {
-        font-size: 0.65rem;
-        padding: 6px 2px;
+        font-size: 0.7rem;
+        padding: 8px 0;
         text-transform: none;
-        letter-spacing: -0.5px;
+        letter-spacing: 0;
+        font-weight: 500;
     }
 
     .calendar-container {
-        padding: 12px;
+        padding: 8px;
     }
 
     .calendar-grid {
-        gap: 2px;
+        gap: 1px;
     }
 
     .calendar-days {
-        gap: 2px;
+        gap: 1px;
     }
 }
 
