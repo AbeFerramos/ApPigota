@@ -1030,6 +1030,16 @@ textarea {
     pointer-events: none;
 }
 
+@media (max-width: 768px) {
+    #toast-container {
+        top: auto;
+        bottom: 80px;
+        right: 16px;
+        left: 16px;
+        max-width: none;
+    }
+}
+
 .toast {
     padding: 12px 14px;
     border-radius: 14px;
