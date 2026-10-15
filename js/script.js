@@ -137,9 +137,16 @@ async function persistStateToFirebase() {
 
 function applyRemoteState(parsedData) {
     if (!parsedData || typeof parsedData !== "object") return;
+
+    console.log("Datos recibidos de Firebase:", parsedData);
+    console.log("Estado local antes:", state);
+
     state = { ...structuredClone(defaultData), ...parsedData };
     normalizeState();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    console.log("Estado después de aplicar:", state);
+
     renderAll({ persist: false });
 }
 
@@ -152,12 +159,34 @@ async function loadStateFromFirebase() {
         const data = snapshot.val();
 
         if (data) {
-            applyRemoteState(JSON.parse(data));
-            setSyncStatus("ok", "Sincronitzat des de Firebase");
-            console.log("Estado cargado desde Firebase correctamente");
+            // Si hay datos en Firebase, pero también tenemos datos locales más recientes
+            // Guardar los datos locales en Firebase en lugar de sobrescribir
+            const localData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            const firebaseData = JSON.parse(data);
+
+            // Comparar timestamps si existen
+            const localTimestamp = localData.updatedAt || 0;
+            const firebaseTimestamp = firebaseData.updatedAt || 0;
+
+            if (localTimestamp > firebaseTimestamp) {
+                // Datos locales más recientes, guardar en Firebase
+                console.log("Datos locales más recientes, guardando en Firebase");
+                localData.updatedAt = new Date().toISOString();
+                await firebaseDatabase.ref(STORAGE_KEY).set(JSON.stringify(localData));
+                setSyncStatus("ok", "Sincronitzat (locals actualitzats)");
+            } else {
+                // Datos de Firebase más recientes, cargarlos
+                console.log("Datos de Firebase más recientes, cargando");
+                applyRemoteState(firebaseData);
+                setSyncStatus("ok", "Sincronitzat des de Firebase");
+            }
         } else {
-            console.log("No hay datos en Firebase, usando estado local");
-            setSyncStatus("ok", "Mode local");
+            console.log("No hay datos en Firebase, guardando estado local");
+            // No hay datos en Firebase, guardar los locales
+            const localData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            localData.updatedAt = new Date().toISOString();
+            await firebaseDatabase.ref(STORAGE_KEY).set(JSON.stringify(localData));
+            setSyncStatus("ok", "Sincronitzat (primera vegada)");
         }
     } catch (error) {
         console.error("Error cargando estado desde Firebase:", error);
