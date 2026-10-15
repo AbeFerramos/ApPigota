@@ -2336,8 +2336,6 @@ function renderCalendar() {
     const monthNames = ['Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny',
                        'Juliol', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre'];
 
-    document.getElementById('calendar-month-year').textContent = `${monthNames[month]} ${year}`;
-
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     // getDay() devuelve 0 para domingo, 1 para lunes, etc.
@@ -2348,7 +2346,24 @@ function renderCalendar() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    let calendarHTML = '';
+    let calendarHTML = `
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <button type="button" onclick="changeMonth(-1)" class="btn-nav"><i class="fas fa-chevron-left"></i></button>
+                <h3>${monthNames[month]} ${year}</h3>
+                <button type="button" onclick="changeMonth(1)" class="btn-nav"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <div class="calendar-grid">
+                <div class="calendar-day-header">L</div>
+                <div class="calendar-day-header">M</div>
+                <div class="calendar-day-header">X</div>
+                <div class="calendar-day-header">J</div>
+                <div class="calendar-day-header">V</div>
+                <div class="calendar-day-header">S</div>
+                <div class="calendar-day-header">D</div>
+            </div>
+            <div class="calendar-days">
+    `;
 
     // Días vacíos antes del primer día del mes
     for (let i = 0; i < startingDay; i++) {
@@ -2381,7 +2396,15 @@ function renderCalendar() {
         calendarHTML += `<div class="${classes}" onclick="handleCalendarClick(${year}, ${month}, ${day})">${content}</div>`;
     }
 
-    document.getElementById('calendar-days').innerHTML = calendarHTML;
+    calendarHTML += `
+            </div>
+        </div>
+    `;
+
+    const container = document.getElementById('calendar-tabals-container');
+    if (container) {
+        container.innerHTML = calendarHTML;
+    }
 }
 
 function changeMonth(delta) {
