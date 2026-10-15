@@ -1,5 +1,5 @@
 // Service Worker para La Pigota PWA
-const CACHE_NAME = 'lapigota-v8';
+const CACHE_NAME = 'lapigota-v9';
 const urlsToCache = [
     '/ApPigota/',
     '/ApPigota/index.html',
