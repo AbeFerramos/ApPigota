@@ -1742,13 +1742,13 @@ function renderCalendarioSortides() {
                 <button class="btn-calendar-nav" onclick="changeCalendarMonth(1)">&gt;</button>
             </div>
             <div class="calendar-grid">
-                <div class="calendar-day-header">D</div>
                 <div class="calendar-day-header">L</div>
                 <div class="calendar-day-header">M</div>
                 <div class="calendar-day-header">X</div>
                 <div class="calendar-day-header">J</div>
                 <div class="calendar-day-header">V</div>
                 <div class="calendar-day-header">S</div>
+                <div class="calendar-day-header">D</div>
     `;
     
     daysInMonth.forEach(day => {
