@@ -2437,7 +2437,7 @@ function renderCalendar() {
         if (assaigDelDia && assaigDelDia.assistencia) {
             const confirmats = Object.keys(assaigDelDia.assistencia).length;
             if (confirmats > 0) {
-                content += `<span class="assaig-count">${confirmats} ${confirmats === 1 ? 'persona' : 'persones'}</span>`;
+                content += `<span class="assaig-count attendance-count" aria-label="${confirmats} ${confirmats === 1 ? 'persona' : 'persones'}" title="${confirmats} ${confirmats === 1 ? 'persona' : 'persones'}">${confirmats}</span>`;
             }
         }
 

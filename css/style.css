@@ -1511,11 +1511,14 @@ input:checked + .slider:before {
 
 .calendar-days {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 4px;
+    min-width: 0;
 }
 
 .calendar-day {
+    min-width: 0;
+    box-sizing: border-box;
     min-height: 40px;
     display: flex;
     flex-direction: column;
@@ -1597,6 +1600,11 @@ input:checked + .slider:before {
     background: rgba(255, 255, 255, 0.3);
     padding: 2px 6px;
     border-radius: 10px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .calendar-day.today {
