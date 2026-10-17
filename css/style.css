@@ -1575,6 +1575,12 @@ input:checked + .slider:before {
     font-weight: 600;
 }
 
+.calendar-day.dia-especial {
+    background: linear-gradient(135deg, rgba(48, 112, 146, 0.24) 0%, rgba(48, 112, 146, 0.14) 100%);
+    border: 2px solid rgba(48, 112, 146, 0.55);
+    font-weight: 600;
+}
+
 .calendar-day.assaig {
     background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
     color: var(--paper);

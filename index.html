@@ -522,7 +522,7 @@
             <div id="tabals-ritmos" class="tabals-subcontent">
                 <div class="section-title">
                     <h3>Ritmes i Partitures</h3>
-                    <button class="btn-add btn-add-small" onclick="openRitmoModal()">+</button>
+                    <button class="btn-add btn-add-small" onclick="openRitmoModal()" title="Afegir ritme (cap de tabal)">+</button>
                 </div>
                 <div class="info-card compact">
                     <p>Reproductor d'àudio i esquemes dels ritmes de la colla.</p>
@@ -687,7 +687,10 @@
                     <option value="toc">Toc</option>
                     <option value="altre">Altre</option>
                 </select>
-                <input type="url" id="ritmo-audio" placeholder="URL de l'àudio (MP3)">
+                <label for="ritmo-audio-file" class="small-text">Fitxer d'àudio (es comprimirà; màxim 4 MB un cop comprimit)</label>
+                <input type="file" id="ritmo-audio-file" accept="audio/*">
+                <input type="url" id="ritmo-audio" placeholder="O enganxa una URL d'àudio existent">
+                <p id="ritmo-audio-status" class="small-text"></p>
                 <textarea id="ritmo-descripcio" placeholder="Descripció o notes"></textarea>
                 <button type="submit" class="btn-primary full">Desar</button>
                 <button type="button" onclick="toggleModal('modal-ritmo')" class="btn-cancelar">Tancar</button>

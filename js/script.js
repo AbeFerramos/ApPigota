@@ -2339,6 +2339,23 @@ function explicacioAptitud(member) {
 let currentCalendarDate = new Date();
 let currentAssaigIndex = null;
 let currentUser = "Usuari"; // En producción, esto vendría de Firebase Auth
+const TABALS_PASSWORD = 'tabals2026';
+
+function autoritzarCapTabal() {
+    const password = window.prompt('Contrasenya del cap de tabal:');
+    if (password === null) return false;
+    if (password !== TABALS_PASSWORD) {
+        showToast('Contrasenya incorrecta', 'error');
+        return false;
+    }
+    return true;
+}
+
+function escapeTabalsText(value) {
+    return String(value || '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
 
 // Navegación de sub-tabs de Tabals
 function showTabalsSubTab(tabId) {
@@ -2412,9 +2429,11 @@ function renderCalendar() {
 
         let classes = 'calendar-day';
         if (isFriday) classes += ' viernes';
+        if (assaigDelDia?.tipus && assaigDelDia.tipus !== 'assaig') classes += ' dia-especial';
         if (isToday) classes += ' today';
 
         let content = `<span class="day-number">${day}</span>`;
+        if (assaigDelDia?.titol) content += `<span class="assaig-count">${escapeTabalsText(assaigDelDia.titol)}</span>`;
         if (assaigDelDia && assaigDelDia.assistencia) {
             const confirmats = Object.keys(assaigDelDia.assistencia).length;
             if (confirmats > 0) {
@@ -2447,13 +2466,24 @@ function handleCalendarClick(year, month, day) {
     // Formatear fecha localmente para evitar problemas de zona horaria
     const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    // Buscar si ya hay asistencia registrada para este día
+    // Els divendres continuen oberts per confirmar assistència. Per afegir un altre dia/tema cal la clau del cap de tabal.
     let assaigDelDia = state.assajos.find(a => a.data === dateString);
 
     if (!assaigDelDia) {
-        // Si no existe, crear un ensayo básico para el viernes
+        const isFriday = date.getDay() === 5;
+        let title = 'Assaig';
+        let tipus = 'assaig';
+        if (!isFriday) {
+            if (!autoritzarCapTabal()) return;
+            title = window.prompt('Nom del dia o activitat (per exemple: Actuació, festa, assaig especial):');
+            if (!title || !title.trim()) return;
+            title = title.trim();
+            tipus = 'especial';
+        }
         assaigDelDia = {
             data: dateString,
+            tipus,
+            titol: title,
             hora: '18:00',
             lloc: 'Lloc habitual',
             notes: '',
@@ -2463,6 +2493,9 @@ function handleCalendarClick(year, month, day) {
             canvis: {}
         };
         state.assajos.push(assaigDelDia);
+        renderCalendar();
+        renderAssajosList();
+        saveState();
     }
 
     openSimpleRSVPModal(state.assajos.indexOf(assaigDelDia));
@@ -2502,7 +2535,7 @@ function renderAssajosList() {
             <article class="assaig-card ${tieneCambio ? 'tiene-cambio' : ''}">
                 <div class="assaig-card-header">
                     <div onclick="openSimpleRSVPModal(${realIndex})" style="cursor: pointer; flex: 1;">
-                        <div class="assaig-card-date">${formattedDate}</div>
+                        <div class="assaig-card-date">${assaig.titol ? `${escapeTabalsText(assaig.titol)} · ` : ''}${formattedDate}</div>
                         <div class="assaig-card-time">${assaig.hora || '18:00'}</div>
                     </div>
                     <button type="button" onclick="openDeleteAssaigModal(${realIndex})" class="btn-delete-assaig" title="Eliminar assaig">
@@ -2542,7 +2575,7 @@ function openSimpleRSVPModal(index) {
     const formattedDate = date.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
     document.getElementById('rassaig-info').innerHTML = `
-        <strong>${formattedDate}</strong>
+        <strong>${assaig.titol ? `${escapeTabalsText(assaig.titol)} · ` : ''}${formattedDate}</strong>
         <span>${assaig.hora || '18:00'} · ${assaig.lloc}</span>
     `;
 
@@ -2675,7 +2708,7 @@ function renderRitmos() {
             ${ritmo.fitxerAudio ? `
                 <div class="ritmo-audio-player">
                     <audio controls>
-                        <source src="${ritmo.fitxerAudio}" type="audio/mpeg">
+                        <source src="${ritmo.fitxerAudio}" type="${ritmo.fitxerAudio.match(/^data:([^;,]+)/)?.[1] || 'audio/mpeg'}">
                         El teu navegador no suporta àudio.
                     </audio>
                 </div>
@@ -2688,30 +2721,81 @@ function renderRitmos() {
     `).join('');
 }
 
+async function compressRitmoAudio(file) {
+    const maxBytes = 4 * 1024 * 1024;
+    if (!file.type.startsWith('audio/')) throw new Error('Selecciona un fitxer d’àudio');
+    if (!window.AudioContext && !window.webkitAudioContext) throw new Error('Aquest navegador no permet convertir àudio');
+    if (!window.MediaRecorder) throw new Error('Aquest navegador no permet comprimir àudio');
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    let source;
+    let recorder;
+    try {
+        const audioBuffer = await audioContext.decodeAudioData(await file.arrayBuffer());
+        const destination = audioContext.createMediaStreamDestination();
+        source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(destination);
+
+        const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
+        if (!mimeType) throw new Error('El navegador no admite un formato de compresión compatible');
+
+        const chunks = [];
+        recorder = new MediaRecorder(destination.stream, { mimeType, audioBitsPerSecond: 96000 });
+        const recording = new Promise((resolve, reject) => {
+            recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+            recorder.onerror = () => reject(new Error('No se ha podido comprimir el audio'));
+            recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
+        });
+        source.onended = () => { if (recorder.state !== 'inactive') recorder.stop(); };
+        recorder.start();
+        source.start();
+        const compressed = await recording;
+        if (compressed.size > maxBytes) throw new Error('El audio comprimido supera los 4 MB; prueba con un audio más corto');
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('No se ha podido leer el audio comprimido'));
+            reader.readAsDataURL(compressed);
+        });
+    } finally {
+        source?.disconnect();
+        recorder?.stream.getTracks().forEach(track => track.stop());
+        await audioContext.close();
+    }
+}
+
 function openRitmoModal() {
+    if (!autoritzarCapTabal()) return;
     document.getElementById('modal-ritmo-title').textContent = 'Nou ritme';
     document.getElementById('form-ritmo').reset();
     document.getElementById('ritmo-index').value = '';
+    document.getElementById('ritmo-audio-status').textContent = '';
     toggleModal('modal-ritmo');
 }
 
 function editarRitmo(index) {
+    if (!autoritzarCapTabal()) return;
     const ritmo = state.ritmos[index];
     document.getElementById('modal-ritmo-title').textContent = 'Editar ritme';
     document.getElementById('ritmo-index').value = index;
     document.getElementById('ritmo-nom').value = ritmo.nom;
     document.getElementById('ritmo-tipus').value = ritmo.tipus;
-    document.getElementById('ritmo-audio').value = ritmo.fitxerAudio || '';
+    document.getElementById('ritmo-audio').value = ritmo.fitxerAudio?.startsWith('data:audio/') ? '' : (ritmo.fitxerAudio || '');
+    document.getElementById('ritmo-audio-file').value = '';
+    document.getElementById('ritmo-audio-status').textContent = ritmo.fitxerAudio?.startsWith('data:audio/') ? 'Hi ha una gravació d’àudio desada.' : '';
     document.getElementById('ritmo-descripcio').value = ritmo.descripcio || '';
     toggleModal('modal-ritmo');
 }
 
 function eliminarRitmo(index) {
+    if (!autoritzarCapTabal()) return;
     const ritmo = state.ritmos[index];
     if (!ritmo || !confirmDelete(ritmo.nom)) return;
     state.ritmos.splice(index, 1);
     renderRitmos();
-    queueRemoteSave();
+    saveState();
 }
 
 // Banner de cambios
@@ -2923,13 +3007,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // Formulario de ritmo
     const formRitmo = document.getElementById("form-ritmo");
     if (formRitmo) {
-        formRitmo.onsubmit = function(event) {
+        formRitmo.onsubmit = async function(event) {
             event.preventDefault();
             const index = document.getElementById("ritmo-index").value;
+            const audioFile = document.getElementById('ritmo-audio-file').files[0];
+            let fitxerAudio = document.getElementById("ritmo-audio").value.trim();
+            if (!fitxerAudio && index !== "") fitxerAudio = state.ritmos[Number(index)]?.fitxerAudio || '';
+            if (audioFile) {
+                if (!audioFile.type.startsWith('audio/')) {
+                    showToast('Selecciona un fitxer d’àudio', 'error');
+                    return;
+                }
+                try {
+                    fitxerAudio = await compressRitmoAudio(audioFile);
+                } catch (error) {
+                    showToast(error.message || 'No s’ha pogut comprimir el fitxer d’àudio', 'error');
+                    return;
+                }
+            }
             const ritmoData = {
                 nom: document.getElementById("ritmo-nom").value,
                 tipus: document.getElementById("ritmo-tipus").value,
-                fitxerAudio: document.getElementById("ritmo-audio").value,
+                fitxerAudio,
                 descripcio: document.getElementById("ritmo-descripcio").value
             };
 
@@ -2943,7 +3042,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById("ritmo-index").value = "";
             toggleModal("modal-ritmo");
             renderRitmos();
-            queueRemoteSave();
+            saveState();
             showToast("Ritme desat correctament", "success");
         };
     }
