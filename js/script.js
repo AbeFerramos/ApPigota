@@ -4,6 +4,8 @@ const STORAGE_KEY = "pigota_junta_app_v1";
 const AUTH_STORAGE_KEY = "pigota_firebase_auth_v1";
 const JUNTA_AUTH_KEY = "pigota_junta_auth_v1";
 const VESTUARI_AUTH_KEY = "pigota_vestuari_auth_v1";
+const KNOWN_SORTIDES_KEY = "lapigota_known_sortides_v1";
+const PENDING_SORTIDA_NOTIFICATIONS_KEY = "lapigota_pending_sortida_notifications_v1";
 
 // PWA Installation
 let deferredPrompt;
@@ -135,19 +137,65 @@ async function persistStateToFirebase() {
     }
 }
 
+function mergeLocalRecentFormResponses(remoteState) {
+    if (!Array.isArray(remoteState?.sortides) || !Array.isArray(state?.sortides)) return false;
+    let mergedAny = false;
+    const remoteStateUpdatedAt = Date.parse(remoteState.updatedAt || '') || 0;
+
+    state.sortides.forEach(localSortida => {
+        const remoteSortida = remoteState.sortides.find(item =>
+            item?.nom === localSortida?.nom && item?.data === localSortida?.data && item?.lloc === localSortida?.lloc
+        );
+        if (!remoteSortida || !Array.isArray(localSortida.assistencia)) return;
+        if (!Array.isArray(remoteSortida.assistencia)) remoteSortida.assistencia = [];
+
+        localSortida.assistencia.forEach(localResponse => {
+            const localName = String(localResponse?.nom || '').trim().toLocaleLowerCase('ca');
+            if (!localName) return;
+            const remoteIndex = remoteSortida.assistencia.findIndex(response =>
+                String(response?.nom || '').trim().toLocaleLowerCase('ca') === localName
+            );
+
+            if (remoteIndex < 0) {
+                const localUpdatedAt = Date.parse(localResponse.updatedAt || '') || 0;
+                if (!remoteStateUpdatedAt || localUpdatedAt > remoteStateUpdatedAt) {
+                    remoteSortida.assistencia.push(structuredClone(localResponse));
+                    mergedAny = true;
+                }
+                return;
+            }
+
+            const remoteResponse = remoteSortida.assistencia[remoteIndex];
+            const localUpdatedAt = Date.parse(localResponse.updatedAt || '') || 0;
+            const remoteUpdatedAt = Date.parse(remoteResponse.updatedAt || '') || 0;
+            if (localUpdatedAt > remoteUpdatedAt) {
+                remoteSortida.assistencia[remoteIndex] = structuredClone(localResponse);
+                mergedAny = true;
+            }
+        });
+    });
+
+    return mergedAny;
+}
+
 function applyRemoteState(parsedData) {
     if (!parsedData || typeof parsedData !== "object") return;
 
     console.log("Datos recibidos de Firebase:", parsedData);
     console.log("Estado local antes:", state);
 
-    state = { ...structuredClone(defaultData), ...parsedData };
+    const nextState = { ...structuredClone(defaultData), ...parsedData };
+    const localResponsesMerged = mergeLocalRecentFormResponses(nextState);
+    state = nextState;
     normalizeState();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    detectNewRemoteSortides(state.sortides);
 
     console.log("Estado después de aplicar:", state);
 
     renderAll({ persist: false });
+    checkAssaigReminders();
+    if (localResponsesMerged) queueRemoteSave();
 }
 
 async function loadStateFromFirebase() {
@@ -253,6 +301,7 @@ let remoteSyncInProgress = false;
 let realtimeSyncTimer = null;
 let juntaAuthenticated = false; // No persistir en localStorage para que se pida cada refresco
 let vestuariAuthenticated = false; // No persistir en localStorage para que se pida cada refresco
+let sortidaNotificationsInProgress = false;
 
 console.log("Configuración básica cargada correctamente");
 let syncStatus = {
@@ -271,6 +320,7 @@ async function requestNotificationPermission() {
     
     if (Notification.permission === "granted") {
         updateNotificationButton(true);
+        await processPendingSortidaNotifications();
         return true;
     }
     
@@ -281,6 +331,7 @@ async function requestNotificationPermission() {
         // Si se concede el permiso, suscribirse a PocketBase Push
         if (permission === "granted") {
             await subscribeToPocketBasePush();
+            await processPendingSortidaNotifications();
         }
         
         return permission === "granted";
@@ -373,62 +424,115 @@ function initializeNotificationButton() {
 
 async function sendLocalNotification(title, body, options = {}) {
     if (!NOTIFICATION_CONFIG.enabled) return;
-    
-    if (NOTIFICATION_CONFIG.useLocalNotifications) {
-        // Usar notificaciones locales del navegador
-        const hasPermission = await requestNotificationPermission();
-        if (hasPermission) {
-            const notification = new Notification(title, {
-                body: body,
-                icon: "https://cdn-icons-png.flaticon.com/512/426/426833.png",
-                badge: "https://cdn-icons-png.flaticon.com/512/426/426833.png",
-                vibrate: [200, 100, 200],
-                ...options
-            });
-            
-            notification.onclick = () => {
-                window.focus();
-                notification.close();
-            };
-            
-            return true;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+
+    const notificationOptions = {
+        body,
+        icon: '/ApPigota/img/logoPi.jpeg',
+        badge: '/ApPigota/img/logoPi.jpeg',
+        vibrate: [200, 100, 200],
+        ...options
+    };
+
+    try {
+        if ('serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.showNotification(title, notificationOptions);
+        } else {
+            new Notification(title, notificationOptions);
         }
-    } else {
-        // Aquí iría la implementación de Web Push con VAPID
-        console.log("Web Push no implementado aún - usaría VAPID");
+        return true;
+    } catch (error) {
+        console.warn('No s’ha pogut mostrar la notificació:', error);
         return false;
     }
-    
-    return false;
 }
 
 function sendSortidaNotification(sortida) {
-    const title = "Nova sortida afegida! 🎉";
-    const body = `${sortida.nom} - ${formatDate(sortida.data)} a ${sortida.lloc}`;
-    const options = {
-        tag: `sortida-${sortida.nom}`,
-        requireInteraction: true,
-        actions: [
-            {
-                action: "view",
-                title: "Veure detalls"
-            },
-            {
-                action: "close",
-                title: "Tancar"
-            }
-        ]
-    };
-    
-    // Enviar notificación local inmediatamente
-    sendLocalNotification(title, body, options);
-    
-    // Enviar notificación push a través de PocketBase (para futuro)
-    sendPocketBasePushNotification(title, body, {
-        type: 'sortida',
-        sortidaId: sortida.nom,
-        data: sortida
+    queueSortidaNotification(sortida);
+    markSortidaAsKnown(sortida);
+    processPendingSortidaNotifications();
+}
+
+function getSortidaNotificationId(sortida) {
+    return String(sortida?.id || `${sortida?.nom || ''}|${sortida?.data || ''}|${sortida?.lloc || ''}`);
+}
+
+function readStoredJson(key, fallback) {
+    try {
+        return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function initializeSortidaNotificationBaseline() {
+    if (localStorage.getItem(KNOWN_SORTIDES_KEY) !== null) return;
+    const knownIds = (state.sortides || []).map(getSortidaNotificationId);
+    localStorage.setItem(KNOWN_SORTIDES_KEY, JSON.stringify(knownIds));
+}
+
+function markSortidaAsKnown(sortida) {
+    const knownIds = readStoredJson(KNOWN_SORTIDES_KEY, []);
+    const id = getSortidaNotificationId(sortida);
+    if (!knownIds.includes(id)) knownIds.push(id);
+    localStorage.setItem(KNOWN_SORTIDES_KEY, JSON.stringify(knownIds));
+}
+
+function queueSortidaNotification(sortida) {
+    if (!sortida) return;
+    const pending = readStoredJson(PENDING_SORTIDA_NOTIFICATIONS_KEY, []);
+    const id = getSortidaNotificationId(sortida);
+    if (pending.some(item => item.id === id)) return;
+    pending.push({
+        id,
+        nom: String(sortida.nom || 'Nova sortida'),
+        data: String(sortida.data || ''),
+        lloc: String(sortida.lloc || '')
     });
+    localStorage.setItem(PENDING_SORTIDA_NOTIFICATIONS_KEY, JSON.stringify(pending));
+}
+
+function detectNewRemoteSortides(sortides) {
+    const incoming = Array.isArray(sortides) ? sortides : [];
+    const knownIds = readStoredJson(KNOWN_SORTIDES_KEY, null);
+    if (!Array.isArray(knownIds)) {
+        localStorage.setItem(KNOWN_SORTIDES_KEY, JSON.stringify(incoming.map(getSortidaNotificationId)));
+        return;
+    }
+
+    incoming.forEach(sortida => {
+        const id = getSortidaNotificationId(sortida);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const eventDate = sortida?.data ? new Date(`${sortida.data}T00:00:00`) : null;
+        if (!knownIds.includes(id) && eventDate && eventDate >= today) queueSortidaNotification(sortida);
+    });
+    localStorage.setItem(KNOWN_SORTIDES_KEY, JSON.stringify(
+        Array.from(new Set([...knownIds, ...incoming.map(getSortidaNotificationId)]))
+    ));
+    processPendingSortidaNotifications();
+}
+
+async function processPendingSortidaNotifications() {
+    if (sortidaNotificationsInProgress) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    sortidaNotificationsInProgress = true;
+    const pending = readStoredJson(PENDING_SORTIDA_NOTIFICATIONS_KEY, []);
+    const remaining = [];
+    try {
+        for (const sortida of pending) {
+            const body = `${sortida.nom} - ${sortida.data ? formatDate(sortida.data) : ''}${sortida.lloc ? ` a ${sortida.lloc}` : ''}`;
+            const shown = await sendLocalNotification('Nova sortida afegida! 🎉', body, {
+                tag: `sortida-${sortida.id}`,
+                requireInteraction: true
+            });
+            if (!shown) remaining.push(sortida);
+        }
+        localStorage.setItem(PENDING_SORTIDA_NOTIFICATIONS_KEY, JSON.stringify(remaining));
+    } finally {
+        sortidaNotificationsInProgress = false;
+    }
 }
 
 // Enviar notificación push a través de PocketBase (para futuro)
@@ -930,6 +1034,7 @@ normalizeState();
 if (isFreshInstall) {
     mergeSeedData();
 }
+initializeSortidaNotificationBaseline();
 
 function loadState() {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -966,6 +1071,7 @@ function saveAuthState() {
 }
 
 function saveState() {
+    state.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     queueRemoteSave();
     updateSyncStatus();
@@ -1098,13 +1204,14 @@ function normalizeState() {
             nens: Number(item.nens || 0),
             menjar: item.menjar || "",
             notes: item.notes || "",
-            acompanyants: Array.isArray(item.adultAcompanyants)
-                ? (Array.isArray(item.acompanyants) ? item.acompanyants : []).map((name) => String(name || "").trim()).filter(Boolean)
+            acompanyants: Array.isArray(item.acompanyants)
+                ? item.acompanyants.map((name) => String(name || "").trim()).filter(Boolean)
                 : [],
             adultAcompanyants: Array.isArray(item.adultAcompanyants)
                 ? item.adultAcompanyants.map((name) => String(name || "").trim()).filter(Boolean)
-                : (Array.isArray(item.acompanyants) ? item.acompanyants.map((name) => String(name || "").trim()).filter(Boolean) : []),
-            extra: item.extra || item.respostesExtra || {}
+                : [],
+            extra: item.extra || item.respostesExtra || {},
+            updatedAt: item.updatedAt || ""
         }))
     }));
     state.reunions = (Array.isArray(state.reunions) ? state.reunions : (defaultData.reunions || [])).map((meeting) => ({
@@ -2635,6 +2742,8 @@ function changeMonth(delta) {
     renderAssajosList();
 }
 
+let pendingExtraAssaigDate = null;
+
 async function handleCalendarClick(year, month, day) {
     const date = new Date(year, month, day);
     // Formatear fecha localmente para evitar problemas de zona horaria
@@ -2649,30 +2758,53 @@ async function handleCalendarClick(year, month, day) {
         let tipus = 'assaig';
         if (!isFriday) {
             if (!(await autoritzarCapTabal())) return;
-            title = window.prompt('Nom del dia o activitat (per exemple: Actuació, festa, assaig especial):');
-            if (!title || !title.trim()) return;
-            title = title.trim();
-            tipus = 'especial';
+            pendingExtraAssaigDate = dateString;
+            document.getElementById('extra-assaig-data').textContent = date.toLocaleDateString('ca-ES', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+            });
+            document.getElementById('form-extra-assaig').reset();
+            document.getElementById('modal-extra-assaig').style.display = 'flex';
+            document.getElementById('extra-assaig-titol').focus();
+            return;
         }
-        assaigDelDia = {
-            data: dateString,
-            tipus,
-            titol: title,
-            hora: '18:00',
-            lloc: 'Lloc habitual',
-            notes: '',
-            assistencia: {},
-            xat: [],
-            recordatorisActivats: true,
-            canvis: {}
-        };
-        state.assajos.push(assaigDelDia);
-        renderCalendar();
-        renderAssajosList();
-        saveState();
+        assaigDelDia = crearAssaigPerData(dateString, title, tipus);
     }
 
     openSimpleRSVPModal(state.assajos.indexOf(assaigDelDia));
+}
+
+function crearAssaigPerData(dateString, title, tipus) {
+    const assaig = {
+        data: dateString,
+        tipus,
+        titol: title,
+        hora: '18:00',
+        lloc: 'Lloc habitual',
+        notes: '',
+        assistencia: {},
+        xat: [],
+        recordatorisActivats: true,
+        canvis: {}
+    };
+    state.assajos.push(assaig);
+    renderCalendar();
+    renderAssajosList();
+    saveState();
+    return assaig;
+}
+
+function cancelarExtraAssaig() {
+    document.getElementById('modal-extra-assaig').style.display = 'none';
+    pendingExtraAssaigDate = null;
+}
+
+function guardarExtraAssaig(event) {
+    event.preventDefault();
+    const title = document.getElementById('extra-assaig-titol').value.trim();
+    if (!pendingExtraAssaigDate || !title) return;
+    const assaig = crearAssaigPerData(pendingExtraAssaigDate, title, 'especial');
+    cancelarExtraAssaig();
+    openSimpleRSVPModal(state.assajos.indexOf(assaig));
 }
 
 // Lista de ensayos
@@ -3187,6 +3319,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Formulario de eliminación de ensayo
+    const formExtraAssaig = document.getElementById('form-extra-assaig');
+    if (formExtraAssaig) formExtraAssaig.onsubmit = guardarExtraAssaig;
+
     const formDeleteAssaig = document.getElementById("form-delete-assaig");
     if (formDeleteAssaig) {
         formDeleteAssaig.onsubmit = function(event) {
@@ -4198,6 +4333,7 @@ function readDynamicFormResponse(prefix) {
     data.adultAcompanyants = Array.from(document.querySelectorAll(`#${prefix}-adult-acompanyants-list [data-adult-companion-name]`))
         .map((input) => input.value.trim())
         .filter(Boolean);
+    data.updatedAt = new Date().toISOString();
     return data;
 }
 

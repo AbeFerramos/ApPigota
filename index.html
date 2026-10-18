@@ -675,6 +675,18 @@
         </div>
     </div>
 
+    <div id="modal-extra-assaig" class="modal" onclick="cancelarExtraAssaig()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h3>Afegir dia extra</h3>
+            <p id="extra-assaig-data" class="small-text"></p>
+            <form id="form-extra-assaig">
+                <input type="text" id="extra-assaig-titol" placeholder="Nom de l'activitat" required>
+                <button type="submit" class="btn-primary full">Crear assaig</button>
+                <button type="button" onclick="cancelarExtraAssaig()" class="btn-cancelar">Cancel·lar</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal de contraseña para eliminar ensayo -->
     <div id="modal-delete-assaig" class="modal">
         <div class="modal-content">
