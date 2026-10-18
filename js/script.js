@@ -1871,7 +1871,7 @@ function renderGestioSortida() {
         if (listContainer) {
             listContainer.innerHTML = trip.assistencia
                 .map(
-                    (item, participantIndex) => `
+                    (item) => `
                         <article class="board-card">
                             <h3>${item.nom}</h3>
                             <div class="priority-bar">
@@ -1879,10 +1879,6 @@ function renderGestioSortida() {
                                 <span class="badge oberta">Nens: ${item.nens}</span>
                             </div>
                             <p><strong>Notes:</strong> ${item.notes || "Sense notes"}</p>
-                            <div class="actions-row">
-                                <button onclick="editarParticipantSortida(${participantIndex})">Editar</button>
-                                <button onclick="eliminarParticipantSortida(${participantIndex})">Eliminar</button>
-                            </div>
                         </article>
                     `
                 )
@@ -3270,19 +3266,11 @@ function hideSortidaForm() {
 }
 
 function renderSortidesModalList() {
-    return state.sortides.map((sortida, index) => `
+    return state.sortides.map((sortida) => `
         <div class="sortida-item-modal">
             <div class="sortida-info">
                 <strong>${sortida.nom}</strong>
                 <small>${formatDate(sortida.data)} · ${sortida.lloc}</small>
-            </div>
-            <div class="sortida-actions">
-                <button onclick="editarSortidaModal(${index})" class="btn-secondary btn-small">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button onclick="eliminarSortidaModal(${index})" class="btn-secondary btn-small btn-danger">
-                    <i class="fas fa-trash"></i>
-                </button>
             </div>
         </div>
     `).join("");
