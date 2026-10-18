@@ -1742,11 +1742,11 @@ function renderCalendarioSortides() {
     
     const firstDay = new Date(currentYear, currentMonth, 1);
     const lastDay = new Date(currentYear, currentMonth + 1, 0);
-    const startDay = firstDay.getDay(); // 0 = domingo, 1 = lunes, etc.
+    const startDay = (firstDay.getDay() + 6) % 7; // Convertir a semana que empieza en lunes.
     const totalDays = lastDay.getDate();
     
     const daysInMonth = [];
-    // JavaScript getDay(): 0=Domingo, 1=Lunes, etc.
+    // Alinear el primer día con la semana que empieza en lunes.
     for (let i = 0; i < startDay; i++) {
         daysInMonth.push(null);
     }
