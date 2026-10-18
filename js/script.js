@@ -2408,15 +2408,48 @@ let currentCalendarDate = new Date();
 let currentAssaigIndex = null;
 let currentUser = "Usuari"; // En producción, esto vendría de Firebase Auth
 const TABALS_PASSWORD = 'tabals2026';
+let capTabalAuthResolver = null;
 
 function autoritzarCapTabal() {
-    const password = window.prompt('Contrasenya del cap de tabal:');
-    if (password === null) return false;
-    if (password !== TABALS_PASSWORD) {
-        showToast('Contrasenya incorrecta', 'error');
+    const modal = document.getElementById('modal-cap-tabal-auth');
+    const form = document.getElementById('form-cap-tabal-auth');
+    const passwordInput = document.getElementById('cap-tabal-password');
+    const error = document.getElementById('cap-tabal-auth-error');
+    if (!modal || !form || !passwordInput || !error) return Promise.resolve(false);
+
+    passwordInput.value = '';
+    error.textContent = '';
+    modal.style.display = 'flex';
+    window.setTimeout(() => passwordInput.focus(), 0);
+
+    return new Promise(resolve => {
+        capTabalAuthResolver = resolve;
+    });
+}
+
+function submitCapTabalAuth(event) {
+    event.preventDefault();
+    const passwordInput = document.getElementById('cap-tabal-password');
+    const error = document.getElementById('cap-tabal-auth-error');
+    if (passwordInput.value !== TABALS_PASSWORD) {
+        error.textContent = 'Contrasenya incorrecta. Torna-ho a provar.';
+        passwordInput.value = '';
+        passwordInput.focus();
         return false;
     }
-    return true;
+
+    document.getElementById('modal-cap-tabal-auth').style.display = 'none';
+    const resolve = capTabalAuthResolver;
+    capTabalAuthResolver = null;
+    resolve?.(true);
+    return false;
+}
+
+function cancelCapTabalAuth() {
+    document.getElementById('modal-cap-tabal-auth').style.display = 'none';
+    const resolve = capTabalAuthResolver;
+    capTabalAuthResolver = null;
+    resolve?.(false);
 }
 
 function escapeTabalsText(value) {
@@ -2529,7 +2562,7 @@ function changeMonth(delta) {
     renderAssajosList();
 }
 
-function handleCalendarClick(year, month, day) {
+async function handleCalendarClick(year, month, day) {
     const date = new Date(year, month, day);
     // Formatear fecha localmente para evitar problemas de zona horaria
     const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -2542,7 +2575,7 @@ function handleCalendarClick(year, month, day) {
         let title = 'Assaig';
         let tipus = 'assaig';
         if (!isFriday) {
-            if (!autoritzarCapTabal()) return;
+            if (!(await autoritzarCapTabal())) return;
             title = window.prompt('Nom del dia o activitat (per exemple: Actuació, festa, assaig especial):');
             if (!title || !title.trim()) return;
             title = title.trim();
@@ -2789,7 +2822,7 @@ function renderRitmos() {
     `).join('');
 }
 
-async function compressRitmoAudio(file) {
+async function compressRitmoAudio(file, onProgress = () => {}) {
     const maxBytes = 4 * 1024 * 1024;
     if (!file.type.startsWith('audio/')) throw new Error('Selecciona un fitxer d’àudio');
     if (!window.AudioContext && !window.webkitAudioContext) throw new Error('Aquest navegador no permet convertir àudio');
@@ -2799,7 +2832,9 @@ async function compressRitmoAudio(file) {
     const audioContext = new AudioContextClass();
     let source;
     let recorder;
+    let progressTimer;
     try {
+        onProgress(null, 'Preparant l’àudio…');
         const audioBuffer = await audioContext.decodeAudioData(await file.arrayBuffer());
         const destination = audioContext.createMediaStreamDestination();
         source = audioContext.createBufferSource();
@@ -2818,33 +2853,48 @@ async function compressRitmoAudio(file) {
         });
         source.onended = () => { if (recorder.state !== 'inactive') recorder.stop(); };
         recorder.start();
+        const startedAt = audioContext.currentTime;
+        progressTimer = window.setInterval(() => {
+            const percent = Math.min(99, Math.round(((audioContext.currentTime - startedAt) / audioBuffer.duration) * 100));
+            onProgress(percent, `Comprimint l’àudio… ${percent}%`);
+        }, 150);
         source.start();
         const compressed = await recording;
+        window.clearInterval(progressTimer);
+        onProgress(99, 'Preparant el fitxer comprimit…');
         if (compressed.size > maxBytes) throw new Error('El audio comprimido supera los 4 MB; prueba con un audio más corto');
         return await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result);
             reader.onerror = () => reject(new Error('No se ha podido leer el audio comprimido'));
+            reader.onprogress = event => {
+                if (event.lengthComputable) {
+                    const percent = Math.min(99, 99 + Math.floor((event.loaded / event.total) * 1));
+                    onProgress(percent, `Preparant el fitxer comprimit… ${percent}%`);
+                }
+            };
             reader.readAsDataURL(compressed);
         });
     } finally {
+        window.clearInterval(progressTimer);
         source?.disconnect();
         recorder?.stream.getTracks().forEach(track => track.stop());
         await audioContext.close();
     }
 }
 
-function openRitmoModal() {
-    if (!autoritzarCapTabal()) return;
+async function openRitmoModal() {
+    if (!(await autoritzarCapTabal())) return;
     document.getElementById('modal-ritmo-title').textContent = 'Nou ritme';
     document.getElementById('form-ritmo').reset();
     document.getElementById('ritmo-index').value = '';
     document.getElementById('ritmo-audio-status').textContent = '';
+    document.getElementById('ritmo-audio-progress-wrap').hidden = true;
     toggleModal('modal-ritmo');
 }
 
-function editarRitmo(index) {
-    if (!autoritzarCapTabal()) return;
+async function editarRitmo(index) {
+    if (!(await autoritzarCapTabal())) return;
     const ritmo = state.ritmos[index];
     document.getElementById('modal-ritmo-title').textContent = 'Editar ritme';
     document.getElementById('ritmo-index').value = index;
@@ -2853,12 +2903,13 @@ function editarRitmo(index) {
     document.getElementById('ritmo-audio').value = ritmo.fitxerAudio?.startsWith('data:audio/') ? '' : (ritmo.fitxerAudio || '');
     document.getElementById('ritmo-audio-file').value = '';
     document.getElementById('ritmo-audio-status').textContent = ritmo.fitxerAudio?.startsWith('data:audio/') ? 'Hi ha una gravació d’àudio desada.' : '';
+    document.getElementById('ritmo-audio-progress-wrap').hidden = true;
     document.getElementById('ritmo-descripcio').value = ritmo.descripcio || '';
     toggleModal('modal-ritmo');
 }
 
-function eliminarRitmo(index) {
-    if (!autoritzarCapTabal()) return;
+async function eliminarRitmo(index) {
+    if (!(await autoritzarCapTabal())) return;
     const ritmo = state.ritmos[index];
     if (!ritmo || !confirmDelete(ritmo.nom)) return;
     state.ritmos.splice(index, 1);
@@ -3087,10 +3138,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 try {
-                    fitxerAudio = await compressRitmoAudio(audioFile);
+                    const progressWrap = document.getElementById('ritmo-audio-progress-wrap');
+                    const progressBar = document.getElementById('ritmo-audio-progress');
+                    const progressLabel = document.getElementById('ritmo-audio-progress-label');
+                    const submitButton = event.target.querySelector('button[type="submit"]');
+                    progressWrap.hidden = false;
+                    progressBar.removeAttribute('value');
+                    progressLabel.textContent = 'Preparant l’àudio…';
+                    submitButton.disabled = true;
+                    fitxerAudio = await compressRitmoAudio(audioFile, (percent, label) => {
+                        progressLabel.textContent = label;
+                        if (percent === null) progressBar.removeAttribute('value');
+                        else progressBar.value = percent;
+                    });
+                    progressBar.value = 100;
+                    progressLabel.textContent = 'Àudio preparat · 100%';
                 } catch (error) {
                     showToast(error.message || 'No s’ha pogut comprimir el fitxer d’àudio', 'error');
                     return;
+                } finally {
+                    const submitButton = event.target.querySelector('button[type="submit"]');
+                    if (submitButton) submitButton.disabled = false;
                 }
             }
             const ritmoData = {

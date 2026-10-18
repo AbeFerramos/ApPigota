@@ -691,6 +691,10 @@
                 <input type="file" id="ritmo-audio-file" accept="audio/*">
                 <input type="url" id="ritmo-audio" placeholder="O enganxa una URL d'àudio existent">
                 <p id="ritmo-audio-status" class="small-text"></p>
+                <div id="ritmo-audio-progress-wrap" class="ritmo-audio-progress-wrap" hidden>
+                    <progress id="ritmo-audio-progress" max="100" value="0"></progress>
+                    <span id="ritmo-audio-progress-label" class="small-text" aria-live="polite"></span>
+                </div>
                 <textarea id="ritmo-descripcio" placeholder="Descripció o notes"></textarea>
                 <button type="submit" class="btn-primary full">Desar</button>
                 <button type="button" onclick="toggleModal('modal-ritmo')" class="btn-cancelar">Tancar</button>
@@ -910,6 +914,19 @@
                 <input type="tel" id="b-contacte-telefon" placeholder="Telèfon de contacte (ex: 600123456)">
                 <button type="submit" class="btn-primary full">Guardar</button>
                 <button type="button" onclick="toggleModal('modal-bestia')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-cap-tabal-auth" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-cap-tabal-title">
+        <div class="modal-content">
+            <h3 id="modal-cap-tabal-title">Accés del cap de tabal</h3>
+            <p>Introdueix la contrasenya per gestionar els ritmes.</p>
+            <form id="form-cap-tabal-auth" onsubmit="return submitCapTabalAuth(event)">
+                <input type="password" id="cap-tabal-password" placeholder="Contrasenya" autocomplete="current-password" required>
+                <p id="cap-tabal-auth-error" class="small-text" aria-live="polite"></p>
+                <button type="submit" class="btn-primary full">Continuar</button>
+                <button type="button" onclick="cancelCapTabalAuth()" class="btn-cancelar">Cancel·lar</button>
             </form>
         </div>
     </div>
