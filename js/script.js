@@ -623,7 +623,7 @@ const defaultData = {
         { id: "resposta", text: "Vindras a aquesta sortida?", tipus: "assistencia", requerida: true },
         { id: "nens", text: "Quants nens vindran amb tu?", tipus: "numero" },
         { id: "menjar", text: "Tema menjar o observacions d'al.lergies", tipus: "text" },
-        { id: "notes", text: "Vols afegir alguna cosa mes?", tipus: "llarg" }
+        { id: "acompanyants", text: "Qui ve amb tu de petits?", tipus: "acompanyants", fixa: true }
     ],
     bestiari: [
         { nom: "Av fènix", poblacio: "Pobla de Mafumet", feina: "Bestia", contacteNom: "Manel", contacteTelefon: "685 965 582" },
@@ -985,17 +985,27 @@ function normalizeFormQuestions(value) {
         const oldValue = value || {};
         return baseQuestions.map((question) => ({
             ...question,
-            text: oldValue[question.id] || question.text
+            text: question.id === "acompanyants" ? "Qui ve amb tu de petits?" : oldValue[question.id] || question.text
         }));
     }
 
     const byId = new Map();
     value.forEach((question) => {
-        const cleanText = (question?.text || "").trim();
+        const isCompanionsQuestion = question?.id === "notes" || question?.pregunta_id === "notes"
+            || question?.id === "acompanyants" || question?.pregunta_id === "acompanyants";
+        const cleanText = (isCompanionsQuestion ? "Qui ve amb tu de petits?" : question?.text || "").trim();
         if (!cleanText) return;
-        const id = question.id || question.pregunta_id || createQuestionId(cleanText);
+        const id = isCompanionsQuestion ? "acompanyants" : question.id || question.pregunta_id || createQuestionId(cleanText);
         if (byId.has(id)) {
-            byId.set(id, { ...byId.get(id), ...question, id, pregunta_id: id, text: cleanText });
+            byId.set(id, {
+                ...byId.get(id),
+                ...question,
+                id,
+                pregunta_id: id,
+                text: cleanText,
+                tipus: isCompanionsQuestion ? "acompanyants" : question.tipus || byId.get(id).tipus,
+                fixa: isCompanionsQuestion ? true : Boolean(question.fixa || byId.get(id).fixa)
+            });
             return;
         }
         const duplicate = Array.from(byId.values()).some(
@@ -1006,12 +1016,16 @@ function normalizeFormQuestions(value) {
                 id,
                 pregunta_id: question.pregunta_id || id,
                 text: cleanText,
-                tipus: question.tipus || "text",
+                tipus: isCompanionsQuestion ? "acompanyants" : question.tipus || "text",
                 requerida: Boolean(question.requerida),
-                fixa: Boolean(question.fixa)
+                fixa: isCompanionsQuestion || Boolean(question.fixa)
             });
         }
     });
+    if (!byId.has("acompanyants")) {
+        const companionsQuestion = baseQuestions.find((question) => question.id === "acompanyants");
+        byId.set(companionsQuestion.id, { ...companionsQuestion });
+    }
     return Array.from(byId.values());
 }
 
@@ -1077,6 +1091,12 @@ function normalizeState() {
             nens: Number(item.nens || 0),
             menjar: item.menjar || "",
             notes: item.notes || "",
+            acompanyants: Array.isArray(item.adultAcompanyants)
+                ? (Array.isArray(item.acompanyants) ? item.acompanyants : []).map((name) => String(name || "").trim()).filter(Boolean)
+                : [],
+            adultAcompanyants: Array.isArray(item.adultAcompanyants)
+                ? item.adultAcompanyants.map((name) => String(name || "").trim()).filter(Boolean)
+                : (Array.isArray(item.acompanyants) ? item.acompanyants.map((name) => String(name || "").trim()).filter(Boolean) : []),
             extra: item.extra || item.respostesExtra || {}
         }))
     }));
@@ -1845,18 +1865,19 @@ function renderGestioSortida() {
 
         const trip = state.sortides[index];
         const counts = {
-            si: trip.assistencia.filter((item) => item.resposta === "si").length,
+            si: trip.assistencia.reduce((sum, item) => sum + countAdultAttendees(item), 0),
             no: trip.assistencia.filter((item) => item.resposta === "no").length,
             potser: trip.assistencia.filter((item) => item.resposta === "potser").length,
-            nens: trip.assistencia.reduce((sum, item) => sum + Number(item.nens || 0), 0)
+            nens: trip.assistencia.reduce((sum, item) => sum + countChildAttendees(item), 0)
         };
-        const nomsSi = trip.assistencia.filter((item) => item.resposta === "si").map((item) => item.nom);
+        const nomsSi = trip.assistencia.filter((item) => item.resposta === "si")
+            .flatMap((item) => [item.nom, ...(item.adultAcompanyants || [])].filter(Boolean));
         const nomsPotser = trip.assistencia.filter((item) => item.resposta === "potser").map((item) => item.nom);
 
         if (resumContainer) {
             resumContainer.innerHTML = `
                 <div class="priority-bar">
-                    <span class="badge baixa">Si: ${counts.si}</span>
+                    <span class="badge baixa">Adults: ${counts.si}</span>
                     <span class="badge alta">No: ${counts.no}</span>
                     <span class="badge mitjana">No ho se: ${counts.potser}</span>
                     <span class="badge oberta">Nens: ${counts.nens}</span>
@@ -1875,10 +1896,12 @@ function renderGestioSortida() {
                         <article class="board-card">
                             <h3>${item.nom}</h3>
                             <div class="priority-bar">
-                                <span class="badge ${item.resposta === "si" ? "baixa" : item.resposta === "no" ? "alta" : "mitjana"}">${item.resposta}</span>
-                                <span class="badge oberta">Nens: ${item.nens}</span>
+                                <span class="badge ${item.resposta === "si" ? "baixa" : item.resposta === "no" ? "alta" : "mitjana"}">${getResponseLabel(item)}</span>
+                                <span class="badge oberta">Adults: ${countAdultAttendees(item)}</span>
+                                <span class="badge oberta">Nens: ${countChildAttendees(item)}</span>
                             </div>
-                            <p><strong>Notes:</strong> ${item.notes || "Sense notes"}</p>
+                            <p><strong>Adults acompanyants:</strong> ${(item.adultAcompanyants || []).join(", ") || "Cap"}</p>
+                            <p><strong>Qui ve amb tu de petits?:</strong> ${(item.acompanyants || []).join(", ") || "No s'han indicat noms"}</p>
                         </article>
                     `
                 )
@@ -1924,7 +1947,7 @@ function getQuestion(id) {
 
 function getExtraFormQuestions() {
     return state.formulariPreguntes.filter(
-        (question) => !["nom", "resposta", "nens", "menjar", "notes"].includes(question.id)
+        (question) => !["nom", "resposta", "nens", "menjar", "notes", "acompanyants"].includes(question.id)
     );
 }
 
@@ -1941,7 +1964,12 @@ function renderFormField(prefix, question, values = {}) {
     const label = `<label for="${inputId}">${question.text}</label>`;
 
     if (question.tipus === "nom") {
-        return `${label}<input type="text" id="${inputId}" list="membres-colla-list" placeholder="Comenca a escriure el nom" value="${escapeAttr(value)}" ${required}>`;
+        const adultCompanions = prefix === "form" ? [
+            '<div id="form-adult-acompanyants-list" class="companion-list"></div>',
+            '<button type="button" class="btn-secondary btn-small companion-add" onclick="addSortidaAdultField()">+1 Afegir adult</button>',
+            '<p class="small-text">Cada acompanyant compta com un adult addicional si respons «Sí vinc».</p>'
+        ].join("") : "";
+        return `${label}<input type="text" id="${inputId}" list="membres-colla-list" placeholder="Comenca a escriure el nom" value="${escapeAttr(value)}" ${required}>${adultCompanions}`;
     }
     if (question.tipus === "assistencia") {
         return `${label}<select id="${inputId}" ${required}>
@@ -1953,10 +1981,39 @@ function renderFormField(prefix, question, values = {}) {
     if (question.tipus === "numero") {
         return `${label}<input type="number" id="${inputId}" min="0" placeholder="0" value="${escapeAttr(value)}" ${required}>`;
     }
+    if (question.tipus === "acompanyants") {
+        return `${label}<div id="${prefix}-acompanyants-list" class="companion-list"></div>
+            <button type="button" class="btn-secondary btn-small companion-add" onclick="addSortidaCompanionField('${prefix}')">+1 Afegir nen/a</button>
+            <p class="small-text">Els noms ajuden a identificar qui ve; els nens es compten també amb la pregunta del nombre.</p>`;
+    }
     if (question.tipus === "llarg") {
         return `${label}<textarea id="${inputId}" placeholder="Escriu la resposta" ${required}>${escapeHtml(value)}</textarea>`;
     }
     return `${label}<input type="text" id="${inputId}" placeholder="Escriu la resposta" value="${escapeAttr(value)}" ${required}>`;
+}
+
+function addSortidaCompanionField(prefix = "form") {
+    const container = document.getElementById(`${prefix}-acompanyants-list`);
+    if (!container) return;
+    const row = document.createElement("div");
+    row.className = "companion-input-row";
+    row.innerHTML = `
+        <input type="text" data-companion-name placeholder="Nom del nen o nena" aria-label="Nom del nen o nena">
+        <button type="button" class="btn-secondary btn-small" aria-label="Treure nen o nena" title="Treure" onclick="this.parentElement.remove()">×</button>
+    `;
+    container.appendChild(row);
+}
+
+function addSortidaAdultField() {
+    const container = document.getElementById("form-adult-acompanyants-list");
+    if (!container) return;
+    const row = document.createElement("div");
+    row.className = "companion-input-row";
+    row.innerHTML = `
+        <input type="text" data-adult-companion-name placeholder="Nom de l'adult acompanyant" aria-label="Nom de l'adult acompanyant">
+        <button type="button" class="btn-secondary btn-small" aria-label="Treure adult" title="Treure" onclick="this.parentElement.remove()">×</button>
+    `;
+    container.appendChild(row);
 }
 
 function renderPreguntesConfig() {
@@ -1965,9 +2022,9 @@ function renderPreguntesConfig() {
     container.innerHTML = state.formulariPreguntes
         .map((question) => `
             <article class="question-config-row">
-                <input type="text" value="${escapeAttr(question.text)}" onchange="actualitzarPreguntaFormulari('${question.id}', this.value)">
+                <input type="text" value="${escapeAttr(question.text)}" onchange="actualitzarPreguntaFormulari('${question.id}', this.value)" ${question.fixa ? "disabled" : ""}>
                 <span class="badge oberta">${question.tipus}</span>
-                <button type="button" onclick="eliminarPreguntaFormulari('${question.id}')">Eliminar</button>
+                <button type="button" onclick="eliminarPreguntaFormulari('${question.id}')" ${question.fixa ? "disabled" : ""}>Eliminar</button>
             </article>
         `)
         .join("");
@@ -1978,7 +2035,9 @@ function renderExtraAnswers(item) {
         .map((question) => {
             const value = item.extra?.[question.id];
             if (value === undefined || value === "") return "";
-            return `<p><strong>${question.text}:</strong> ${value}</p>`;
+            const displayValue = Array.isArray(value) ? value.join(", ") : value;
+            if (displayValue === undefined || displayValue === "") return "";
+            return `<p><strong>${question.text}:</strong> ${displayValue}</p>`;
         })
         .filter(Boolean);
     return answers.join("");
@@ -1989,8 +2048,9 @@ function renderConfiguredAnswers(item) {
         .filter((question) => question.id !== "nom")
         .map((question) => {
             const value = question.id in item ? item[question.id] : item.extra?.[question.id];
-            if (value === undefined || value === "") return "";
-            return `<p><strong>${question.text}:</strong> ${value}</p>`;
+            const displayValue = Array.isArray(value) ? value.join(", ") : value;
+            if (displayValue === undefined || displayValue === "") return "";
+            return `<p><strong>${question.text}:</strong> ${displayValue}</p>`;
         })
         .filter(Boolean)
         .join("");
@@ -2000,6 +2060,16 @@ function getResponseLabel(item) {
     if (item.resposta === "si") return "Si vinc";
     if (item.resposta === "no") return "No vinc";
     return "No ho se encara";
+}
+
+function countAdultAttendees(item) {
+    if (item.resposta !== "si") return 0;
+    return 1 + (Array.isArray(item.adultAcompanyants) ? item.adultAcompanyants.filter(Boolean).length : 0);
+}
+
+function countChildAttendees(item) {
+    const identifiedChildren = Array.isArray(item.acompanyants) ? item.acompanyants.filter(Boolean).length : 0;
+    return item.resposta === "si" ? Math.max(Number(item.nens || 0), identifiedChildren) : 0;
 }
 
 function renderRespostesForm() {
@@ -2046,16 +2116,16 @@ function renderRespostesForm() {
 
         const counts = {
             total: allResponses.length,
-            si: allResponses.filter(({ item }) => item.resposta === "si").length,
+            si: allResponses.reduce((sum, { item }) => sum + countAdultAttendees(item), 0),
             no: allResponses.filter(({ item }) => item.resposta === "no").length,
             potser: allResponses.filter(({ item }) => item.resposta === "potser").length,
-            nens: allResponses.reduce((sum, { item }) => sum + Number(item.nens || 0), 0)
+            nens: allResponses.reduce((sum, { item }) => sum + countChildAttendees(item), 0)
         };
 
         summary.innerHTML = `
             <div class="response-summary-grid">
                 <span class="badge oberta">Respostes: ${counts.total}</span>
-                <span class="badge baixa">Si: ${counts.si}</span>
+                <span class="badge baixa">Adults: ${counts.si}</span>
                 <span class="badge alta">No: ${counts.no}</span>
                 <span class="badge mitjana">Potser: ${counts.potser}</span>
                 <span class="badge oberta">Nens: ${counts.nens}</span>
@@ -2069,8 +2139,10 @@ function renderRespostesForm() {
                     <div class="meta-line">${trip.nom} · ${formatDate(trip.data)}</div>
                     <div class="priority-bar">
                         <span class="badge ${item.resposta === "si" ? "baixa" : item.resposta === "no" ? "alta" : "mitjana"}">${getResponseLabel(item)}</span>
-                        <span class="badge oberta">Nens: ${item.nens}</span>
+                        <span class="badge oberta">Adults: ${countAdultAttendees(item)}</span>
+                        <span class="badge oberta">Nens: ${countChildAttendees(item)}</span>
                     </div>
+                    ${(item.adultAcompanyants || []).length ? `<p><strong>Adults acompanyants (+1):</strong> ${item.adultAcompanyants.join(", ")}</p>` : ""}
                     ${renderConfiguredAnswers(item)}
                     <div class="actions-row">
                         <button onclick="editarRespostaForm(${sortidaIndex}, ${participantIndex})">Editar</button>
@@ -3656,7 +3728,8 @@ function editarParticipantSortida(participantIndex) {
     document.getElementById("ps-resposta").value = item.resposta;
     document.getElementById("ps-nens").value = item.nens;
     document.getElementById("ps-menjar").value = item.menjar || "";
-    document.getElementById("ps-notes").value = item.notes || "";
+    document.getElementById("ps-adult-acompanyants").value = (item.adultAcompanyants || []).join(", ");
+    document.getElementById("ps-notes").value = (item.acompanyants || []).join(", ");
     toggleModal("modal-participant-sortida");
 }
 
@@ -3767,6 +3840,7 @@ async function syncQuestionUpdateToPocketBase(question) {
 function eliminarPreguntaFormulari(questionId) {
     const question = state.formulariPreguntes.find((item) => item.pregunta_id === questionId || item.id === questionId);
     if (!question) return;
+    if (question.fixa) return;
     if (!confirmDelete(question.text)) return;
 
     state.formulariPreguntes = state.formulariPreguntes.filter((item) => item.pregunta_id !== questionId && item.id !== questionId);
@@ -3929,6 +4003,7 @@ function readDynamicFormResponse(prefix) {
         nens: 0,
         menjar: "",
         notes: "",
+        acompanyants: [],
         extra: {}
     };
 
@@ -3945,6 +4020,12 @@ function readDynamicFormResponse(prefix) {
 
     data.nom = String(data.nom || "").trim();
     data.nens = Number(data.nens || 0);
+    data.acompanyants = Array.from(document.querySelectorAll(`#${prefix}-acompanyants-list [data-companion-name]`))
+        .map((input) => input.value.trim())
+        .filter(Boolean);
+    data.adultAcompanyants = Array.from(document.querySelectorAll(`#${prefix}-adult-acompanyants-list [data-adult-companion-name]`))
+        .map((input) => input.value.trim())
+        .filter(Boolean);
     return data;
 }
 
@@ -3979,17 +4060,20 @@ function buildSortidaSummaryText(sortidaIndex) {
     const si = trip.assistencia.filter((item) => item.resposta === "si");
     const no = trip.assistencia.filter((item) => item.resposta === "no");
     const potser = trip.assistencia.filter((item) => item.resposta === "potser");
-    const nens = trip.assistencia.reduce((sum, item) => sum + Number(item.nens || 0), 0);
+    const adults = si.reduce((sum, item) => sum + countAdultAttendees(item), 0);
+    const nens = trip.assistencia.reduce((sum, item) => sum + countChildAttendees(item), 0);
+    const nomsAdults = si.flatMap((item) => [item.nom, ...(item.adultAcompanyants || [])].filter(Boolean));
+    const nomsNens = si.flatMap((item) => item.acompanyants || []).filter(Boolean);
 
     return [
         `Sortida: ${trip.nom}`,
         `Lloc i data: ${trip.lloc} - ${formatDate(trip.data)}`,
         `Estat: ${trip.estat}`,
         "",
-        `Venen (${si.length}): ${si.length ? si.map((item) => item.nom).join(", ") : "ningú"}`,
+        `Venen (${adults} adults): ${nomsAdults.length ? nomsAdults.join(", ") : "ningú"}`,
         `No venen (${no.length}): ${no.length ? no.map((item) => item.nom).join(", ") : "ningú"}`,
         `Per confirmar (${potser.length}): ${potser.length ? potser.map((item) => item.nom).join(", ") : "ningú"}`,
-        `Nens totals: ${nens}`
+        `Nens totals: ${nens}${nomsNens.length ? ` (${nomsNens.join(", ")})` : ""}`
     ].join("\n");
 }
 
@@ -4594,7 +4678,9 @@ document.getElementById("form-participant-sortida").onsubmit = (event) => {
         resposta: document.getElementById("ps-resposta").value,
         nens: Number(document.getElementById("ps-nens").value || 0),
         menjar: document.getElementById("ps-menjar").value,
-        notes: document.getElementById("ps-notes").value
+        notes: participantIndex === "" ? "" : state.sortides[sortidaIndex].assistencia[participantIndex]?.notes || "",
+        adultAcompanyants: document.getElementById("ps-adult-acompanyants").value.split(",").map((name) => name.trim()).filter(Boolean),
+        acompanyants: document.getElementById("ps-notes").value.split(",").map((name) => name.trim()).filter(Boolean)
     };
     addMemberIfMissing(data.nom);
     if (participantIndex === "") {

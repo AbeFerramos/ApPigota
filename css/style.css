@@ -947,6 +947,29 @@ textarea {
     border-radius: 6px;
 }
 
+.companion-list {
+    display: grid;
+    gap: 8px;
+}
+
+.companion-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.companion-input-row input {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.companion-input-row button,
+.companion-add {
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+
 .form-config-card {
     border-radius: 8px;
 }
