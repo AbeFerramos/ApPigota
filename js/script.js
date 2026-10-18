@@ -905,6 +905,7 @@ const defaultData = {
         { nom: "Marxa del dimoni", tipus: "marxa", fitxerAudio: "", descripcio: "Marxa tradicional de la colla" },
         { nom: "Ball de diables", tipus: "ball", fitxerAudio: "", descripcio: "Ritme per al ball tradicional" }
     ],
+    estatTabals: [],
     bestiari: [
         {
             nom: "Carro de la Grossa",
@@ -1053,6 +1054,12 @@ function normalizeState() {
     state.assajos = Array.isArray(state.assajos) ? state.assajos : (defaultData.assajos || []);
     state.tabalers = Array.isArray(state.tabalers) ? state.tabalers : (defaultData.tabalers || []);
     state.ritmos = Array.isArray(state.ritmos) && state.ritmos.length > 0 ? state.ritmos : (defaultData.ritmos || []);
+    state.estatTabals = Array.isArray(state.estatTabals)
+        ? state.estatTabals.map(item => ({
+            numero: Number(item?.numero),
+            estat: item?.estat === 'correcte' ? 'correcte' : 'revisar'
+        })).filter(item => Number.isInteger(item.numero) && item.numero > 0)
+        : structuredClone(defaultData.estatTabals);
     state.junta = Array.isArray(state.junta) && state.junta.length > 0 ? state.junta : (defaultData.junta || []);
     state.eixos = Array.isArray(state.eixos) && state.eixos.length > 0 ? state.eixos : (defaultData.eixos || []);
     state.comunicadores = Array.isArray(state.comunicadores) ? state.comunicadores : (defaultData.comunicadores || []);
@@ -2471,7 +2478,73 @@ function showTabalsSubTab(tabId) {
         renderAssajosList();
     } else if (tabId === 'tabals-ritmos') {
         renderRitmos();
+    } else if (tabId === 'tabals-estat') {
+        renderEstatTabals();
     }
+}
+
+function renderEstatTabals() {
+    const container = document.getElementById('lista-estat-tabals');
+    if (!container) return;
+
+    if (!state.estatTabals.length) {
+        container.innerHTML = '<p class="small-text">Encara no hi ha instruments afegits.</p>';
+        return;
+    }
+
+    container.innerHTML = state.estatTabals.map((item, index) => {
+        const correcte = item.estat === 'correcte';
+        return `
+            <article class="estat-tabal-card ${correcte ? 'is-correcte' : 'needs-review'}">
+                <span class="estat-tabal-indicator" aria-hidden="true"></span>
+                <div class="estat-tabal-info">
+                    <strong>Tabal ${item.numero}</strong>
+                    <span>${correcte ? 'Correcte' : 'Cal revisar'}</span>
+                </div>
+                <button type="button" class="estat-tabal-toggle" onclick="toggleEstatTabal(${index})" aria-label="${correcte ? 'Marcar per revisar' : 'Marcar com a correcte'}">
+                    ${correcte ? 'Marcar per revisar' : 'Marcar correcte'}
+                </button>
+                <button type="button" class="estat-tabal-delete" onclick="eliminarEstatTabal(${index})" aria-label="Eliminar tabal ${item.numero}">×</button>
+            </article>
+        `;
+    }).join('');
+}
+
+function toggleEstatTabal(index) {
+    const item = state.estatTabals[index];
+    if (!item) return;
+    item.estat = item.estat === 'correcte' ? 'revisar' : 'correcte';
+    renderEstatTabals();
+    saveState();
+}
+
+async function eliminarEstatTabal(index) {
+    if (!state.estatTabals[index] || !(await autoritzarCapTabal())) return;
+    const numero = state.estatTabals[index].numero;
+    state.estatTabals.splice(index, 1);
+    renderEstatTabals();
+    saveState();
+    showToast(`Tabal ${numero} eliminat`, 'success');
+}
+
+async function afegirEstatTabal(event) {
+    event.preventDefault();
+    const input = document.getElementById('estat-tabal-numero');
+    const numero = Number(input.value);
+    if (!Number.isInteger(numero) || numero < 1) return;
+    const duplicate = state.estatTabals.some(item => item.numero === numero);
+    if (duplicate) {
+        showToast(`El tabal ${numero} ja està afegit`, 'error');
+        return;
+    }
+
+    if (!(await autoritzarCapTabal())) return;
+    state.estatTabals.push({ numero, estat: 'revisar' });
+    state.estatTabals.sort((a, b) => a.numero - b.numero);
+    document.getElementById('form-estat-tabal').reset();
+    renderEstatTabals();
+    saveState();
+    showToast(`Tabal ${numero} afegit`, 'success');
 }
 
 // Calendario
@@ -3124,6 +3197,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Formulario de ritmo
+    const formEstatTabal = document.getElementById('form-estat-tabal');
+    if (formEstatTabal) formEstatTabal.onsubmit = afegirEstatTabal;
+
     const formRitmo = document.getElementById("form-ritmo");
     if (formRitmo) {
         formRitmo.onsubmit = async function(event) {
@@ -3406,11 +3482,16 @@ function hideSortidaForm() {
 }
 
 function renderSortidesModalList() {
-    return state.sortides.map((sortida) => `
+    if (!state.sortides.length) return '<p class="small-text">No hi ha sortides creades.</p>';
+    return state.sortides.map((sortida, index) => `
         <div class="sortida-item-modal">
             <div class="sortida-info">
-                <strong>${sortida.nom}</strong>
-                <small>${formatDate(sortida.data)} · ${sortida.lloc}</small>
+                <strong>${escapeHtml(sortida.nom)}</strong>
+                <small>${formatDate(sortida.data)} · ${escapeHtml(sortida.lloc)}</small>
+            </div>
+            <div class="sortida-actions">
+                <button type="button" class="btn-small" onclick="editarSortidaModal(${index})" aria-label="Editar ${escapeAttr(sortida.nom)}" title="Editar"><i class="fas fa-pen"></i></button>
+                <button type="button" class="btn-small btn-danger" onclick="eliminarSortidaModal(${index})" aria-label="Eliminar ${escapeAttr(sortida.nom)}" title="Eliminar"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     `).join("");
@@ -3428,10 +3509,33 @@ function editarSortidaModal(index) {
     document.getElementById("form-sortida-container").style.display = "block";
 }
 
+let sortidaPendentEliminarIndex = null;
+
 function eliminarSortidaModal(index) {
     const sortida = state.sortides[index];
-    if (!sortida || !confirmDelete(sortida.nom)) return;
+    if (!sortida) return;
+    sortidaPendentEliminarIndex = index;
+    document.getElementById('confirmar-eliminar-sortida-text').textContent =
+        `Segur que vols eliminar «${sortida.nom}»? Aquesta acció no es pot desfer.`;
+    document.getElementById('modal-confirmar-eliminar-sortida').style.display = 'flex';
+}
+
+function cancelarEliminarSortida() {
+    document.getElementById('modal-confirmar-eliminar-sortida').style.display = 'none';
+    sortidaPendentEliminarIndex = null;
+}
+
+function confirmarEliminarSortida() {
+    const index = sortidaPendentEliminarIndex;
+    const sortida = state.sortides[index];
+    if (!sortida) {
+        cancelarEliminarSortida();
+        return;
+    }
+
+    adjustStockFromSortida(sortida, 1);
     state.sortides.splice(index, 1);
+    cancelarEliminarSortida();
     document.getElementById("lista-sortides-modal").innerHTML = renderSortidesModalList();
     renderAll();
 }

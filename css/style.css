@@ -1373,6 +1373,91 @@ textarea {
     display: block;
 }
 
+.estat-tabal-add-form {
+    display: flex;
+    gap: 8px;
+    margin: 14px 0;
+}
+
+.estat-tabal-add-form input {
+    flex: 1;
+    min-width: 0;
+}
+
+.estat-tabals-list {
+    display: grid;
+    gap: 10px;
+}
+
+.estat-tabal-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px;
+    border: 1px solid;
+    border-radius: 12px;
+}
+
+.estat-tabal-card.is-correcte {
+    color: #166534;
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.estat-tabal-card.needs-review {
+    color: #991b1b;
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.estat-tabal-indicator {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 13px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.estat-tabal-info {
+    display: grid;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+}
+
+.estat-tabal-info span {
+    font-size: 0.85rem;
+}
+
+.estat-tabal-toggle,
+.estat-tabal-delete {
+    border: 1px solid currentColor;
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+}
+
+.estat-tabal-delete {
+    padding: 5px 10px;
+    font-size: 1.1rem;
+}
+
+@media (max-width: 520px) {
+    .estat-tabal-card {
+        flex-wrap: wrap;
+    }
+
+    .estat-tabal-info {
+        flex: 1 1 calc(100% - 30px);
+    }
+
+    .estat-tabal-toggle {
+        margin-left: 25px;
+    }
+}
+
 /* Banner de cambios */
 .cambio-banner {
     display: flex;
