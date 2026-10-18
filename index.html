@@ -919,7 +919,16 @@
     <script src="js/script.js"></script>
     <script>
         if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register("/ApPigota/sw.js").catch(() => {});
+            let reloadedForUpdate = false;
+            navigator.serviceWorker.addEventListener("controllerchange", () => {
+                if (reloadedForUpdate) return;
+                reloadedForUpdate = true;
+                window.location.reload();
+            });
+
+            navigator.serviceWorker.register("/ApPigota/sw.js")
+                .then(registration => registration.update())
+                .catch(() => {});
         }
     </script>
 </body>

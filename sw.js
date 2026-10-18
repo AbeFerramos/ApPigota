@@ -1,59 +1,66 @@
-// Service Worker para La Pigota PWA
-const CACHE_NAME = 'lapigota-v9';
+// Service worker para La Pigota PWA.
+// Cambia la versión al publicar cambios en los recursos precargados.
+const CACHE_NAME = 'lapigota-v10';
+const APP_ROOT = '/ApPigota/';
 const urlsToCache = [
-    '/ApPigota/',
-    '/ApPigota/index.html',
-    '/ApPigota/css/style.css',
-    '/ApPigota/manifest.json',
-    '/ApPigota/img/logoPi.jpeg',
-    '/ApPigota/img/fondo-pigota.jpeg',
-    '/ApPigota/js/script.js'
+    APP_ROOT,
+    `${APP_ROOT}index.html`,
+    `${APP_ROOT}css/style.css`,
+    `${APP_ROOT}manifest.json`,
+    `${APP_ROOT}img/logoPi.jpeg`,
+    `${APP_ROOT}img/fondo-pigota.jpeg`,
+    `${APP_ROOT}js/script.js`
 ];
-
-const networkFirstPaths = ['sw.js'];
 
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => cache.addAll(urlsToCache))
+            .then(() => self.skipWaiting())
     );
-    self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim())
+        caches.keys()
+            .then(cacheNames => Promise.all(
+                cacheNames
+                    .filter(cacheName => cacheName.startsWith('lapigota-') && cacheName !== CACHE_NAME)
+                    .map(cacheName => caches.delete(cacheName))
+            ))
+            .then(() => self.clients.claim())
     );
 });
 
 self.addEventListener('fetch', event => {
-    const url = new URL(event.request.url);
+    const request = event.request;
+    const url = new URL(request.url);
 
-    if (networkFirstPaths.some(path => url.pathname.endsWith(path.replace(/^\//, '')))) {
-        event.respondWith(
-            fetch(event.request)
-                .then(response => {
-                    if (response && response.status === 200) {
-                        const responseClone = response.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
-                    }
-                    return response;
-                })
-                .catch(() => caches.match(event.request))
-        );
+    // No interceptar APIs, recursos externos ni peticiones que no sean GET.
+    if (request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(APP_ROOT)) {
         return;
     }
 
+    // Consultar la versión publicada en cada navegación y recurso de la app.
+    // Si no hay conexión, servir la última copia guardada.
     event.respondWith(
-        caches.match(event.request)
-            .then(response => response || fetch(event.request))
+        fetch(request)
+            .then(response => {
+                if (response.ok) {
+                    const responseCopy = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(request, responseCopy));
+                }
+                return response;
+            })
+            .catch(async () => {
+                const cached = await caches.match(request);
+                if (cached) return cached;
+
+                if (request.mode === 'navigate') {
+                    return (await caches.match(`${APP_ROOT}index.html`)) || Response.error();
+                }
+
+                return Response.error();
+            })
     );
 });
