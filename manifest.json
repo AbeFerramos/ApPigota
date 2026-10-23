@@ -9,19 +9,19 @@
   "scope": "/ApPigota/",
   "icons": [
     {
-      "src": "img/app-icon-192.png",
+      "src": "img/app-icon-10anys-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "img/app-icon-512.png",
+      "src": "img/app-icon-10anys-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "img/app-icon-maskable-512.png",
+      "src": "img/app-icon-10anys-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -34,14 +34,14 @@
       "short_name": "Tasques",
       "description": "Acceso rápido a las tareas",
       "url": "/ApPigota/?tab=tab-tasques",
-      "icons": [{ "src": "img/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "img/app-icon-10anys-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Sortides",
       "short_name": "Sortides",
       "description": "Ver las próximas sortidas",
       "url": "/ApPigota/?tab=tab-sortides",
-      "icons": [{ "src": "img/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "img/app-icon-10anys-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

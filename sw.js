@@ -1,6 +1,6 @@
 // Service worker para La Pigota PWA.
 // Cambia la versión al publicar cambios en los recursos precargados.
-const CACHE_NAME = 'lapigota-v11';
+const CACHE_NAME = 'lapigota-v12';
 const APP_ROOT = '/ApPigota/';
 const urlsToCache = [
     APP_ROOT,
@@ -8,10 +8,10 @@ const urlsToCache = [
     `${APP_ROOT}css/style.css`,
     `${APP_ROOT}manifest.json`,
     `${APP_ROOT}img/logoPi.jpeg`,
-    `${APP_ROOT}img/app-icon-180.png`,
-    `${APP_ROOT}img/app-icon-192.png`,
-    `${APP_ROOT}img/app-icon-512.png`,
-    `${APP_ROOT}img/app-icon-maskable-512.png`,
+    `${APP_ROOT}img/app-icon-10anys-180.png`,
+    `${APP_ROOT}img/app-icon-10anys-192.png`,
+    `${APP_ROOT}img/app-icon-10anys-512.png`,
+    `${APP_ROOT}img/app-icon-10anys-maskable-512.png`,
     `${APP_ROOT}img/fondo-pigota.jpeg`,
     `${APP_ROOT}js/script.js`
 ];
