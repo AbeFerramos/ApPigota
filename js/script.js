@@ -1244,6 +1244,26 @@ function normalizeState() {
     }));
     
     state.reservesRoba = Array.isArray(state.reservesRoba) ? state.reservesRoba : [];
+    state.extras = (Array.isArray(state.extras) ? state.extras : []).map((extra) => ({
+        id: extra?.id || createExtraId(),
+        titol: extra?.titol || "Extra",
+        descripcio: extra?.descripcio || "",
+        maximNumeros: Math.max(1, Number(extra?.maximNumeros) || 1),
+        sortejat: Boolean(extra?.sortejat),
+        tancat: Boolean(extra?.tancat),
+        participants: (Array.isArray(extra?.participants) ? extra.participants : [])
+            .map((participant) => ({
+                id: participant?.id || createExtraId(),
+                nom: String(participant?.nom || "").trim(),
+                preferit: Number.isInteger(Number(participant?.preferit)) && Number(participant?.preferit) > 0
+                    ? Number(participant?.preferit)
+                    : null,
+                assignat: Number.isInteger(Number(participant?.assignat)) && Number(participant?.assignat) > 0
+                    ? Number(participant?.assignat)
+                    : null
+            }))
+            .filter((participant) => participant.nom)
+    }));
     state.vestuariAssignacions = Array.isArray(state.vestuariAssignacions) && state.vestuariAssignacions.length > 0 ? state.vestuariAssignacions : (defaultData.vestuariAssignacions || []);
     state.vestuariStock = state.vestuariStock || defaultData.vestuariStock;
     state.recorridosMapa = state.recorridosMapa || defaultData.recorridosMapa || {};
@@ -1675,6 +1695,9 @@ function renderAll(options = {}) {
         renderVestuari();
         renderTabals();
         renderBestiari();
+        renderExtras();
+        renderExtrasJunta();
+        updateExtrasNav();
         // Inicializar calendario de Tabals si estamos en esa pestaña
         const tabalsTab = document.getElementById('tab-tabals');
         if (tabalsTab && tabalsTab.classList.contains('active')) {
@@ -1741,6 +1764,278 @@ function renderJunta() {
             `
         )
         .join("");
+}
+
+function createExtraId() {
+    return `extra-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function findExtra(extraId) {
+    return state.extras.find((extra) => extra.id === extraId);
+}
+
+function findExtraParticipant(extra, participantId) {
+    return extra?.participants.find((participant) => participant.id === participantId);
+}
+
+function updateExtrasNav() {
+    const navButton = document.getElementById("btn-extras");
+    const hasExtras = state.extras.length > 0;
+    if (navButton) {
+        navButton.style.display = hasExtras ? "" : "none";
+    }
+    const extrasTab = document.getElementById("tab-extras");
+    if (!hasExtras && extrasTab && extrasTab.classList.contains("active")) {
+        showTab("tab-sortides");
+    }
+}
+
+function extraAssignedNumbers(extra) {
+    return new Set(extra.participants.map((participant) => participant.assignat).filter(Boolean));
+}
+
+function freeExtraNumbers(extra) {
+    const used = extraAssignedNumbers(extra);
+    const free = [];
+    for (let number = 1; number <= extra.maximNumeros; number += 1) {
+        if (!used.has(number)) free.push(number);
+    }
+    return free;
+}
+
+function assignExtraParticipantNumber(extra, participant) {
+    const free = freeExtraNumbers(extra);
+    if (!free.length) {
+        showToast("No queden numeros lliures", "error");
+        return false;
+    }
+    participant.assignat = free[Math.floor(Math.random() * free.length)];
+    extra.sortejat = true;
+    return true;
+}
+
+function renderExtras() {
+    const container = document.getElementById("lista-extras");
+    if (!container) return;
+    if (!state.extras.length) {
+        container.innerHTML = '<p class="small-text">No hi ha extras creats per la junta.</p>';
+        return;
+    }
+    container.innerHTML = state.extras.map((extra) => {
+        const participants = [...extra.participants].sort((a, b) =>
+            (a.assignat ?? Number.MAX_SAFE_INTEGER) - (b.assignat ?? Number.MAX_SAFE_INTEGER)
+            || a.nom.localeCompare(b.nom, "ca")
+        );
+        const list = participants.length
+            ? `<ul class="clean-list">${participants.map((participant) => `
+                <li>
+                    <strong>${escapeHtml(participant.nom)}</strong>
+                    ${participant.preferit ? ` · vol el ${participant.preferit}` : ""}
+                    ${extra.sortejat && participant.assignat ? ` · <span class="extra-numero">${participant.assignat}</span>` : ""}
+                </li>`).join("")}</ul>`
+            : '<p class="small-text">Encara no hi ha participants apuntats.</p>';
+        const joinForm = extra.tancat ? "" : `
+            <form class="extra-join-form" onsubmit="return afegirMeExtra(event, '${extra.id}')">
+                <input type="text" list="membres-colla-list" placeholder="El teu nom" required>
+                <input type="number" min="1" max="${extra.maximNumeros}" step="1" placeholder="Núm. que vols" required>
+                <button type="submit">Apuntar-me</button>
+            </form>`;
+        return `
+            <article class="person-card">
+                <div class="section-title">
+                    <h3>${escapeHtml(extra.titol)}</h3>
+                    ${extra.tancat ? '<span class="badge baixa">Tancat</span>' : ""}
+                </div>
+                ${extra.descripcio ? `<p>${escapeHtml(extra.descripcio)}</p>` : ""}
+                <div class="meta-line">${participants.length} participants · números de l'1 al ${extra.maximNumeros}${extra.sortejat ? " · sortegi fet" : ""}</div>
+                ${list}
+                ${joinForm}
+            </article>
+        `;
+    }).join("");
+}
+
+function renderExtrasJunta() {
+    const container = document.getElementById("lista-extras-junta");
+    if (!container) return;
+    if (!state.extras.length) {
+        container.innerHTML = '<p class="small-text">No hi ha extras creats. Fes clic a + per crear-ne un.</p>';
+        return;
+    }
+    container.innerHTML = state.extras.map((extra) => {
+        const assignedCount = extra.participants.filter((participant) => participant.assignat).length;
+        const freeCount = freeExtraNumbers(extra).length;
+        const rows = extra.participants.length
+            ? extra.participants.map((participant) => `
+                <div class="extra-participant-row">
+                    <span class="extra-nom">${escapeHtml(participant.nom)}</span>
+                    <label class="extra-pref-label">Vol
+                        <input type="number" min="1" max="${extra.maximNumeros}" step="1"
+                            value="${participant.preferit ?? ""}" placeholder="—"
+                            onchange="setExtraPreferit('${extra.id}', '${participant.id}', this.value)">
+                    </label>
+                    <span class="extra-numero">${participant.assignat ?? "—"}</span>
+                    <span class="extra-row-actions">
+                        ${!participant.assignat ? `<button type="button" onclick="assignExtraParticipant('${extra.id}', '${participant.id}')" title="Sortear número">Sortear</button>` : ""}
+                        <button type="button" onclick="eliminarParticipantExtra('${extra.id}', '${participant.id}')" title="Eliminar participant">&times;</button>
+                    </span>
+                </div>`).join("")
+            : '<p class="small-text">Encara no hi ha participants. Afegix-los a sota o edita l\'extra.</p>';
+        return `
+            <article class="person-card extra-card">
+                <div class="section-title">
+                    <h3>${escapeHtml(extra.titol)}</h3>
+                    ${extra.tancat ? '<span class="badge baixa">Tancat</span>' : ""}
+                    ${extra.sortejat ? '<span class="badge mitjana">Sortejat</span>' : ""}
+                </div>
+                ${extra.descripcio ? `<p>${escapeHtml(extra.descripcio)}</p>` : ""}
+                <div class="meta-line">${extra.participants.length} participants · números de l'1 al ${extra.maximNumeros} · ${assignedCount} assignats · ${freeCount} lliures</div>
+                ${rows}
+                <form class="extra-add-form" onsubmit="return afegirParticipantExtra(event, '${extra.id}')">
+                    <input type="text" list="membres-colla-list" placeholder="Afegir participant" required>
+                    <button type="submit" title="Afegir participant">+</button>
+                </form>
+                <div class="actions-row">
+                    <button onclick="sortearExtra('${extra.id}', ${extra.sortejat})">${extra.sortejat ? "Tornar a sortear" : "Fer el sortegi"}</button>
+                    <button onclick="toggleExtraTancat('${extra.id}')">${extra.tancat ? "Reobrir" : "Tancar"}</button>
+                    <button onclick="editarExtra('${extra.id}')">Editar</button>
+                    <button onclick="eliminarExtra('${extra.id}')">Eliminar</button>
+                </div>
+            </article>
+        `;
+    }).join("");
+}
+
+function openExtraModal() {
+    document.getElementById("modal-extra-title").innerText = "Nou extra";
+    document.getElementById("form-extra").reset();
+    document.getElementById("e-index").value = "";
+    toggleModal("modal-extra");
+}
+
+function editarExtra(extraId) {
+    const extra = findExtra(extraId);
+    if (!extra) return;
+    document.getElementById("modal-extra-title").innerText = "Editar extra";
+    document.getElementById("e-index").value = extra.id;
+    document.getElementById("e-titol").value = extra.titol;
+    document.getElementById("e-descripcio").value = extra.descripcio;
+    document.getElementById("e-maxim").value = extra.maximNumeros;
+    document.getElementById("e-participants").value = extra.participants.map((participant) => participant.nom).join("\n");
+    toggleModal("modal-extra");
+}
+
+function eliminarExtra(extraId) {
+    const index = state.extras.findIndex((extra) => extra.id === extraId);
+    if (index === -1 || !confirmDelete(state.extras[index].titol)) return;
+    state.extras.splice(index, 1);
+    renderAll();
+}
+
+function afegirParticipantExtra(event, extraId) {
+    event.preventDefault();
+    const extra = findExtra(extraId);
+    if (!extra) return false;
+    const input = event.target.querySelector("input");
+    const nom = input.value.trim();
+    if (!nom) return false;
+    addMemberIfMissing(nom);
+    extra.participants.push({ id: createExtraId(), nom, preferit: null, assignat: null });
+    renderAll();
+    return false;
+}
+
+function afegirMeExtra(event, extraId) {
+    event.preventDefault();
+    const extra = findExtra(extraId);
+    if (!extra || extra.tancat) return false;
+    const inputs = event.target.querySelectorAll("input");
+    const nom = inputs[0].value.trim();
+    const number = Number(inputs[1].value);
+    if (!nom) return false;
+    if (!Number.isInteger(number) || number < 1 || number > extra.maximNumeros) {
+        showToast(`El número ha d'estar entre 1 i ${extra.maximNumeros}`, "error");
+        return false;
+    }
+    addMemberIfMissing(nom);
+    let participant = extra.participants.find(
+        (item) => item.nom.toLocaleLowerCase("ca") === nom.toLocaleLowerCase("ca")
+    );
+    if (!participant) {
+        participant = { id: createExtraId(), nom, preferit: null, assignat: null };
+        extra.participants.push(participant);
+    }
+    participant.preferit = number;
+    if (extra.sortejat && !participant.assignat) {
+        assignExtraParticipantNumber(extra, participant);
+    }
+    event.target.reset();
+    renderAll();
+    showToast(`Apuntat a ${extra.titol}`, "success");
+    return false;
+}
+
+function eliminarParticipantExtra(extraId, participantId) {
+    const extra = findExtra(extraId);
+    const participant = findExtraParticipant(extra, participantId);
+    if (!participant || !confirmDelete(participant.nom)) return;
+    extra.participants = extra.participants.filter((item) => item.id !== participantId);
+    renderAll();
+}
+
+function setExtraPreferit(extraId, participantId, value) {
+    const extra = findExtra(extraId);
+    const participant = findExtraParticipant(extra, participantId);
+    if (!participant) return;
+    const number = Number(value);
+    if (value === "" || value === null) {
+        participant.preferit = null;
+    } else if (Number.isInteger(number) && number >= 1 && number <= extra.maximNumeros) {
+        participant.preferit = number;
+    } else {
+        showToast(`El número preferit ha d'estar entre 1 i ${extra.maximNumeros}`, "error");
+        renderExtrasJunta();
+        return;
+    }
+    renderAll();
+}
+
+function assignExtraParticipant(extraId, participantId) {
+    const extra = findExtra(extraId);
+    const participant = findExtraParticipant(extra, participantId);
+    if (!participant) return;
+    if (assignExtraParticipantNumber(extra, participant)) {
+        renderAll();
+    }
+}
+
+function sortearExtra(extraId, reiniciar) {
+    const extra = findExtra(extraId);
+    if (!extra || !extra.participants.length) {
+        showToast("Cal afegir participants abans de sortear", "error");
+        return;
+    }
+    if (reiniciar) {
+        extra.participants.forEach((participant) => { participant.assignat = null; });
+    }
+    extra.participants.forEach((participant) => {
+        if (reiniciar || !participant.assignat) {
+            const free = freeExtraNumbers(extra);
+            if (free.length) {
+                participant.assignat = free[Math.floor(Math.random() * free.length)];
+            }
+        }
+    });
+    extra.sortejat = extra.participants.some((participant) => participant.assignat);
+    renderAll();
+    showToast(extra.sortejat ? "Sortegi fet" : "No s'ha pogut fer el sortegi", extra.sortejat ? "success" : "error");
+}
+
+function toggleExtraTancat(extraId) {
+    const extra = findExtra(extraId);
+    if (!extra) return;
+    extra.tancat = !extra.tancat;
+    renderAll();
 }
 
 function renderDocumentacio() {
@@ -4701,6 +4996,63 @@ document.getElementById("form-junta").onsubmit = (event) => {
     toggleModal("modal-junta");
     renderAll();
 };
+
+const formExtra = document.getElementById("form-extra");
+if (formExtra) {
+    formExtra.onsubmit = (event) => {
+        event.preventDefault();
+        const extraId = document.getElementById("e-index").value;
+        const names = document.getElementById("e-participants").value
+            .split("\n")
+            .map((name) => name.trim())
+            .filter(Boolean);
+        const maximNumeros = Math.max(1, Number(document.getElementById("e-maxim").value) || 1);
+
+        let extra;
+        if (extraId === "") {
+            extra = {
+                id: createExtraId(),
+                titol: document.getElementById("e-titol").value.trim(),
+                descripcio: document.getElementById("e-descripcio").value.trim(),
+                maximNumeros,
+                sortejat: false,
+                tancat: false,
+                participants: []
+            };
+            state.extras.push(extra);
+        } else {
+            extra = findExtra(extraId);
+            if (!extra) return;
+            extra.titol = document.getElementById("e-titol").value.trim();
+            extra.descripcio = document.getElementById("e-descripcio").value.trim();
+            extra.maximNumeros = maximNumeros;
+        }
+
+        const existingByName = new Map(extra.participants.map((participant) => [participant.nom.toLowerCase(), participant]));
+        extra.participants = names.map((nom) => {
+            const existing = existingByName.get(nom.toLowerCase());
+            if (existing) {
+                existing.nom = nom;
+                return existing;
+            }
+            addMemberIfMissing(nom);
+            return { id: createExtraId(), nom, preferit: null, assignat: null };
+        });
+        if (!extra.sortejat) {
+            extra.participants.forEach((participant) => { participant.assignat = null; });
+        } else {
+            extra.participants.forEach((participant) => {
+                if (participant.assignat > extra.maximNumeros) participant.assignat = null;
+            });
+        }
+
+        event.target.reset();
+        document.getElementById("e-index").value = "";
+        document.getElementById("modal-extra-title").innerText = "Nou extra";
+        toggleModal("modal-extra");
+        renderAll();
+    };
+}
 
 document.getElementById("form-document").onsubmit = (event) => {
     event.preventDefault();

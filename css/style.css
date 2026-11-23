@@ -489,7 +489,8 @@ textarea {
     z-index: 25;
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     gap: 4px;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     background: rgba(255, 250, 245, 0.97);
@@ -2075,4 +2076,118 @@ input:checked + .slider:before {
     font-size: 0.85rem;
 }
     font-weight: 600;
+}
+
+/* Extras */
+.extra-numero {
+    display: inline-block;
+    min-width: 34px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(194, 75, 43, 0.12);
+    color: var(--accent-dark);
+    font-weight: 700;
+    text-align: center;
+}
+
+.extra-participant-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+}
+
+.extra-participant-row .extra-nom {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+}
+
+.extra-pref-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.extra-pref-label input {
+    width: 76px;
+    margin: 0;
+    padding: 7px 10px;
+    font-size: 0.9rem;
+}
+
+.extra-row-actions {
+    display: flex;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.extra-row-actions button {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 7px 10px;
+    background: var(--surface-2);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+
+.extra-add-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.extra-add-form input {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.extra-add-form button {
+    flex: 0 0 auto;
+    width: auto;
+    margin-bottom: 0;
+    padding: 0 18px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.extra-join-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.extra-join-form input {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.extra-join-form input[type="number"] {
+    flex: 0 0 110px;
+}
+
+.extra-join-form button {
+    flex: 0 0 auto;
+    width: auto;
+    margin-bottom: 0;
+    padding: 0 16px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
 }

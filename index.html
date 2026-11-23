@@ -92,6 +92,9 @@
                     <button type="button" onclick="showJuntaSubTab('junta-r-form')" class="junta-subnav-item" id="btn-junta-r-form">
                         <i class="fas fa-square-poll-vertical"></i><span>R. form</span>
                     </button>
+                    <button type="button" onclick="showJuntaSubTab('junta-extras')" class="junta-subnav-item" id="btn-junta-extras">
+                        <i class="fas fa-gift"></i><span>Extras</span>
+                    </button>
                     <button type="button" onclick="logoutJunta()" class="junta-subnav-item" id="btn-junta-logout">
                         <i class="fas fa-sign-out-alt"></i><span>Tancar sessio</span>
                     </button>
@@ -312,8 +315,31 @@
                             <div id="lista-respostes-form"></div>
                         </div>
                     </div>
+
+                    <div id="junta-extras" class="junta-subcontent">
+                        <div class="section-title">
+                            <h2>Extras</h2>
+                            <button class="btn-add" onclick="openExtraModal()">+</button>
+                        </div>
+                        <div class="info-card compact">
+                            <strong>Activitats extra de la colla</strong>
+                            <p>Crea antics com el decim de Nadal: defineix quants numeros hi ha, apunta els participants amb el numero que volen i fes el sortegi. Mentre existeixi algun extra, apareix com una pestanya mes a la pagina principal.</p>
+                        </div>
+                        <div id="lista-extras-junta"></div>
+                    </div>
                 </div>
             </div>
+        </section>
+
+        <section id="tab-extras" class="tab-content">
+            <div class="section-title">
+                <h2>Extras</h2>
+            </div>
+            <div class="info-card compact">
+                <strong>Activitats de la colla</strong>
+                <p>Antics i iniciatives puntuals organitzades per la junta. Apunta't amb el teu nom i el número que vols.</p>
+            </div>
+            <div id="lista-extras"></div>
         </section>
 
         <section id="tab-sortides" class="tab-content active">
@@ -556,6 +582,7 @@
         <button type="button" onclick="showTab('tab-formulari')" class="nav-item" id="btn-formulari"><i class="fas fa-clipboard-list"></i><span>Formulari</span></button>
         <button type="button" onclick="showTab('tab-vestuari')" class="nav-item" id="btn-vestuari"><i class="fas fa-shirt"></i><span>Vestuari</span></button>
         <button type="button" onclick="showTab('tab-tabals')" class="nav-item" id="btn-tabals"><i class="fas fa-drum"></i><span>Tabals</span></button>
+        <button type="button" onclick="showTab('tab-extras')" class="nav-item" id="btn-extras" style="display: none;"><i class="fas fa-gift"></i><span>Extras</span></button>
     </nav>
 
     <div id="modal-reunion" class="modal">
@@ -588,6 +615,22 @@
                 <textarea id="t-detall" placeholder="Detall o context"></textarea>
                 <button type="submit" class="btn-primary full">Guardar</button>
                 <button type="button" onclick="toggleModal('modal-tasca')" class="btn-cancelar">Tancar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-extra" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-extra-title">Nou extra</h3>
+            <form id="form-extra">
+                <input type="hidden" id="e-index">
+                <input type="text" id="e-titol" placeholder="Titol (ex: Decim de Nadal)" required>
+                <textarea id="e-descripcio" placeholder="Descripcio o notes de l'extra"></textarea>
+                <input type="number" id="e-maxim" min="1" step="1" placeholder="Quantitat de numeros (ex: 100)" required>
+                <label for="e-participants" class="small-text">Participants (un nom per linia, opcional)</label>
+                <textarea id="e-participants" placeholder="Un nom per linia"></textarea>
+                <button type="submit" class="btn-primary full">Guardar</button>
+                <button type="button" onclick="toggleModal('modal-extra')" class="btn-cancelar">Tancar</button>
             </form>
         </div>
     </div>
